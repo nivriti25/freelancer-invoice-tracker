@@ -1,0 +1,73 @@
+# pyrefly: ignore [missing-import]
+from sqlalchemy import Column, String, ForeignKey, DateTime, JSON, Numeric, Date, FetchedValue
+# pyrefly: ignore [missing-import]
+from sqlalchemy.dialects.postgresql import UUID
+# pyrefly: ignore [missing-import]
+from sqlalchemy.orm import relationship
+# pyrefly: ignore [missing-import]
+from sqlalchemy.sql import func
+import uuid
+from app.database import Base
+
+class User(Base):
+    __tablename__ = "profiles"
+    __table_args__ = {"schema": "public"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True)
+    name = Column("full_name", String, nullable=True)
+    gst_number = Column(String, nullable=True)
+    bank_details = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    clients = relationship("Client", back_populates="user", cascade="all, delete-orphan")
+    invoices = relationship("Invoice", back_populates="user", cascade="all, delete-orphan")
+
+class Client(Base):
+    __tablename__ = "clients"
+    __table_args__ = {"schema": "public"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("public.profiles.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String, nullable=False)
+    email = Column(String, nullable=True)
+    gst_number = Column(String, nullable=True)
+    address = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", back_populates="clients")
+    invoices = relationship("Invoice", back_populates="client", cascade="all, delete-orphan")
+
+class Invoice(Base):
+    __tablename__ = "invoices"
+    __table_args__ = {"schema": "public"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("public.profiles.id", ondelete="CASCADE"), nullable=False)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("public.clients.id", ondelete="CASCADE"), nullable=False)
+    invoice_number = Column(String, nullable=False)
+    issue_date = Column(Date, nullable=False)
+    due_date = Column(Date, nullable=False)
+    status = Column(String, nullable=False)
+    subtotal = Column(Numeric(10, 2), nullable=False, default=0.00)
+    gst_rate = Column(Numeric(5, 2), nullable=False, default=18.00)
+    gst_amount = Column(Numeric(10, 2), nullable=False, default=0.00)
+    total_amount = Column(Numeric(10, 2), nullable=False, default=0.00)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", back_populates="invoices")
+    client = relationship("Client", back_populates="invoices")
+    items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan")
+
+class InvoiceItem(Base):
+    __tablename__ = "invoice_items"
+    __table_args__ = {"schema": "public"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    invoice_id = Column(UUID(as_uuid=True), ForeignKey("public.invoices.id", ondelete="CASCADE"), nullable=False)
+    description = Column(String, nullable=False)
+    quantity = Column(Numeric(10, 2), nullable=False)
+    rate = Column(Numeric(10, 2), nullable=False)
+    amount = Column(Numeric(10, 2), FetchedValue())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    invoice = relationship("Invoice", back_populates="items")
