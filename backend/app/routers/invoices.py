@@ -112,3 +112,53 @@ async def get_invoices(
     invoices = db.query(models.Invoice).filter(models.Invoice.user_id == current_user_id).all()
     return invoices
 
+@router.patch("/{invoice_id}", response_model=schemas.InvoiceResponse)
+async def update_invoice_status(
+    invoice_id: UUID,
+    status_update: schemas.InvoiceStatusUpdate,
+    current_user_id: UUID = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
+    """
+    Update status of an invoice belonging to the authenticated user.
+    """
+    invoice = db.query(models.Invoice).filter(
+        models.Invoice.id == invoice_id,
+        models.Invoice.user_id == current_user_id
+    ).first()
+    
+    if not invoice:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invoice not found or does not belong to the authenticated user"
+        )
+        
+    invoice.status = status_update.status
+    db.commit()
+    db.refresh(invoice)
+    return invoice
+
+@router.delete("/{invoice_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_invoice(
+    invoice_id: UUID,
+    current_user_id: UUID = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
+    """
+    Delete an invoice belonging to the authenticated user.
+    """
+    invoice = db.query(models.Invoice).filter(
+        models.Invoice.id == invoice_id,
+        models.Invoice.user_id == current_user_id
+    ).first()
+    
+    if not invoice:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invoice not found or does not belong to the authenticated user"
+        )
+        
+    db.delete(invoice)
+    db.commit()
+    return
+

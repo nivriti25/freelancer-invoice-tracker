@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Mail, Lock, User, AlertCircle, FileText, Loader2, Shield, CheckCircle2, CreditCard } from 'lucide-react';
+import { Shield, Lock, Coins, ArrowRight, FileText, AlertCircle, Loader2 } from 'lucide-react';
 
 export default function AuthScreen() {
   const { signIn, signUp } = useAuth();
@@ -18,230 +18,216 @@ export default function AuthScreen() {
     setError(null);
     setSuccess(null);
 
-    if (isLogin) {
-      const { error: signInError } = await signIn(email, password);
-      if (signInError) {
-        setError(signInError.message);
-        setLoading(false);
-      }
-    } else {
-      const { error: signUpError } = await signUp(email, password, {
-        data: {
-          name: fullName
-        }
-      });
-      if (signUpError) {
-        setError(signUpError.message);
-        setLoading(false);
+    try {
+      if (isLogin) {
+        const { error: signInError } = await signIn(email, password);
+        if (signInError) throw signInError;
       } else {
+        const { error: signUpError } = await signUp(email, password, {
+          data: {
+            name: fullName
+          }
+        });
+        if (signUpError) throw signUpError;
         setSuccess('Account created! Please check your email to verify or sign in directly if email confirmation is disabled.');
-        setLoading(false);
       }
+    } catch (err) {
+      setError(err.message || 'An error occurred during authentication.');
+    } finally {
+      setLoading(false);
     }
   };
 
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex font-sans antialiased overflow-hidden">
+    <div className="min-h-screen bg-white text-[#042C53] flex flex-col lg:flex-row font-sans antialiased overflow-y-auto">
       
-      {/* Left Panel: Fintech Branding & Feature Showcases (hidden on mobile) */}
-      <div className="hidden lg:flex lg:w-1/2 bg-slate-100 border-r border-slate-200/80 p-12 flex-col justify-between relative overflow-hidden">
-        {/* Decorative subtle ambient light */}
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/5 rounded-full blur-3xl translate-x-1/2 -translate-y-1/2"></div>
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-purple-500/5 rounded-full blur-3xl -translate-x-1/2 translate-y-1/2"></div>
-
-        {/* Header Logo */}
-        <div className="flex items-center gap-2.5 relative z-10">
-          <div className="bg-indigo-600 p-2 rounded-xl text-white">
-            <FileText className="w-5 h-5" />
+      {/* Left Panel: Navy Background */}
+      <div className="w-full lg:w-1/2 bg-[#042C53] text-white p-12 flex flex-col justify-between min-h-[500px] lg:min-h-screen">
+        {/* Top brand logo area */}
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-[#378ADD] flex items-center justify-center text-white">
+            <FileText className="w-4 h-4" />
           </div>
-          <span className="font-bold text-lg tracking-tight text-slate-800">
-            InvoiceFlow
-          </span>
-          <span className="text-[10px] uppercase font-bold tracking-widest text-indigo-600 bg-indigo-600/10 px-2 py-0.5 rounded-full">
-            Fintech API
-          </span>
+          <span className="text-[#85B7EB] font-medium text-lg">Ledgr</span>
         </div>
 
-        {/* Content Showcase */}
-        <div className="max-w-md my-auto space-y-8 relative z-10">
-          <div className="space-y-4">
-            <h2 className="text-4xl font-extrabold tracking-tight leading-[115%] text-slate-800">
-              The modern billing infrastructure for freelancers.
-            </h2>
-            <p className="text-slate-555 text-base leading-relaxed">
-              Automate invoice creation, manage dynamic clients, and track GST compliance in real-time on our secure transactional platform.
-            </p>
-          </div>
+        {/* Headline */}
+        <h2 className="text-3xl lg:text-4xl font-medium tracking-tight text-white max-w-md my-auto leading-tight">
+          Invoice smarter. <span className="text-[#85B7EB]">Get paid</span> faster.
+        </h2>
 
-          {/* Fintech Value Propositions */}
-          <div className="space-y-4 pt-2">
-            <div className="flex gap-4 items-start">
-              <div className="p-2 bg-indigo-500/10 text-indigo-600 rounded-lg shrink-0">
-                <Shield className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="font-semibold text-sm text-slate-700">Secure Database Sandboxing</h4>
-                <p className="text-xs text-slate-500 mt-0.5">Row Level Security (RLS) policies isolate your data at the database layer.</p>
-              </div>
+        {/* Stats Grid & Footnote container */}
+        <div className="space-y-6">
+          {/* 2x2 Grid */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 rounded-lg bg-[#378ADD]/10 border border-[#B5D4F4]/20 flex flex-col justify-between min-h-[90px]">
+              <span className="text-xl lg:text-2xl font-medium text-white">3 min</span>
+              <span className="text-xs text-[#85B7EB] mt-1 font-normal">To send an invoice</span>
             </div>
-
-            <div className="flex gap-4 items-start">
-              <div className="p-2 bg-purple-500/10 text-purple-650 rounded-lg shrink-0">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="font-semibold text-sm text-slate-700">18% GST Automated Calculation</h4>
-                <p className="text-xs text-slate-500 mt-0.5">Transactional math handles decimal calculations correctly with no precision leaks.</p>
-              </div>
+            <div className="p-4 rounded-lg bg-[#378ADD]/10 border border-[#B5D4F4]/20 flex flex-col justify-between min-h-[90px]">
+              <span className="text-xl lg:text-2xl font-medium text-white">18%</span>
+              <span className="text-xs text-[#85B7EB] mt-1 font-normal">GST auto-applied</span>
             </div>
-
-            <div className="flex gap-4 items-start">
-              <div className="p-2 bg-emerald-500/10 text-emerald-650 rounded-lg shrink-0">
-                <CreditCard className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="font-semibold text-sm text-slate-700">Razorpay Order Creation</h4>
-                <p className="text-xs text-slate-500 mt-0.5">Ready to bind with leading payment processors for instant settlements.</p>
-              </div>
+            <div className="p-4 rounded-lg bg-[#378ADD]/10 border border-[#B5D4F4]/20 flex flex-col justify-between min-h-[90px]">
+              <span className="text-xl lg:text-2xl font-medium text-white">Zero</span>
+              <span className="text-xs text-[#85B7EB] mt-1 font-normal">Overdue surprises</span>
+            </div>
+            <div className="p-4 rounded-lg bg-[#378ADD]/10 border border-[#B5D4F4]/20 flex flex-col justify-between min-h-[90px]">
+              <span className="text-xl lg:text-2xl font-medium text-white">INR</span>
+              <span className="text-xs text-[#85B7EB] mt-1 font-normal">Native currency</span>
             </div>
           </div>
-        </div>
 
-        {/* Footer info */}
-        <div className="text-xs text-slate-400 relative z-10 font-semibold">
-          © {new Date().getFullYear()} InvoiceFlow Inc. All rights reserved. Secure transactions powered by Supabase.
+          {/* Footnote */}
+          <div className="text-xs text-[#85B7EB]/70 font-normal">
+            Built for Indian freelancers. Razorpay-powered.
+          </div>
         </div>
       </div>
 
-      {/* Right Panel: Minimalist Fintech Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white relative">
-        <div className="w-full max-w-sm space-y-8">
-          
-          {/* Header (visible on mobile only) */}
-          <div className="lg:hidden flex flex-col items-center gap-2 mb-8 text-center">
-            <div className="bg-indigo-600 p-2.5 rounded-xl text-white">
-              <FileText className="w-6 h-6" />
-            </div>
-            <h1 className="font-bold text-2xl tracking-tight text-slate-800">
-              InvoiceFlow
-            </h1>
+      {/* Right Panel: White Background */}
+      <div className="w-full lg:w-1/2 bg-white p-12 flex flex-col justify-between min-h-[600px] lg:min-h-screen">
+        {/* Mobile brand header (hidden on desktop) */}
+        <div className="lg:hidden flex items-center gap-2 mb-8">
+          <div className="w-8 h-8 rounded-lg bg-[#378ADD] flex items-center justify-center text-white">
+            <FileText className="w-4 h-4" />
           </div>
+          <span className="text-[#042C53] font-medium text-lg">Ledgr</span>
+        </div>
+        <div className="hidden lg:block"></div>
 
-          <div className="space-y-2">
-            <h3 className="text-2xl font-bold tracking-tight text-slate-800">
-              {isLogin ? 'Sign in to dashboard' : 'Create billing account'}
-            </h3>
-            <p className="text-slate-500 text-sm">
-              {isLogin ? 'Enter your credentials to manage invoices' : 'Fill in the form to set up your profile'}
+        {/* Form Container */}
+        <div className="w-full max-w-sm mx-auto my-auto space-y-6">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-medium text-[#042C53] tracking-tight">
+              {isLogin ? 'Welcome back' : 'Create account'}
+            </h1>
+            <p className="text-[#888780] text-sm font-normal">
+              {isLogin ? 'Enter your credentials to access your account' : 'Fill in the details to register your profile'}
             </p>
           </div>
 
+          {/* Tabs */}
+          <div className="inline-flex p-1 bg-[#D3D1C7]/30 rounded-full w-full">
+            <button
+              type="button"
+              onClick={() => { setIsLogin(true); setError(null); setSuccess(null); }}
+              className={`flex-1 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                isLogin ? 'bg-[#042C53] text-white' : 'text-[#042C53] hover:text-[#042C53]/80'
+              }`}
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              onClick={() => { setIsLogin(false); setError(null); setSuccess(null); }}
+              className={`flex-1 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                !isLogin ? 'bg-[#042C53] text-white' : 'text-[#042C53] hover:text-[#042C53]/80'
+              }`}
+            >
+              Create account
+            </button>
+          </div>
+
           {/* Form */}
-          <form 
-            onSubmit={handleSubmit} 
-            autoComplete="off" 
-            className="space-y-4"
-          >
+          <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="flex items-start gap-2 bg-rose-50 border border-rose-200 text-rose-600 text-xs p-3.5 rounded-xl">
+              <div className="flex items-start gap-2 bg-rose-50 border border-rose-100 text-rose-600 text-xs p-3.5 rounded-lg">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{error}</span>
+                <span className="font-normal">{error}</span>
               </div>
             )}
 
             {success && (
-              <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs p-3.5 rounded-xl">
-                <span>{success}</span>
+              <div className="bg-emerald-50 border border-emerald-100 text-emerald-700 text-xs p-3.5 rounded-lg">
+                <span className="font-normal">{success}</span>
               </div>
             )}
 
             {!isLogin && (
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-500">Full Name</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
-                    <User className="w-4.5 h-4.5" />
-                  </span>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Name"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    autoComplete="off"
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all"
-                  />
-                </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-[#888780]">Full name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Full name"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-[#B5D4F4] rounded-lg text-sm text-[#042C53] placeholder-[#888780]/40 focus:outline-none focus:ring-1 focus:ring-[#378ADD] focus:border-[#378ADD] transition-colors font-normal"
+                />
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-500">Email Address</label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
-                  <Mail className="w-4.5 h-4.5" />
-                </span>
-                <input
-                  type="email"
-                  required
-                  placeholder="Email Address"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="new-email"
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all"
-                />
-              </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-[#888780]">Email address</label>
+              <input
+                type="email"
+                required
+                placeholder="Email address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-[#B5D4F4] rounded-lg text-sm text-[#042C53] placeholder-[#888780]/40 focus:outline-none focus:ring-1 focus:ring-[#378ADD] focus:border-[#378ADD] transition-colors font-normal"
+              />
             </div>
 
-            <div className="space-y-1.5">
-              <div className="flex justify-between items-center">
-                <label className="text-xs font-semibold text-slate-500">Password</label>
-              </div>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
-                  <Lock className="w-4.5 h-4.5" />
-                </span>
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="new-password"
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all"
-                />
-              </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-[#888780]">Password</label>
+              <input
+                type="password"
+                required
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-[#B5D4F4] rounded-lg text-sm text-[#042C53] placeholder-[#888780]/40 focus:outline-none focus:ring-1 focus:ring-[#378ADD] focus:border-[#378ADD] transition-colors font-normal"
+              />
             </div>
+
+            {isLogin && (
+              <div className="flex justify-end">
+                <a href="#forgot" className="text-xs font-medium text-[#378ADD] hover:text-[#378ADD]/80 transition-colors">
+                  Forgot password?
+                </a>
+              </div>
+            )}
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-indigo-600 hover:bg-indigo-550 disabled:bg-indigo-650/50 disabled:cursor-not-allowed text-white py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/10 mt-6"
+              className="w-full bg-[#042C53] hover:bg-[#042C53]/95 text-white py-2.5 rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2 mt-2"
             >
               {loading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Verifying...
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <span>Please wait...</span>
                 </>
-              ) : isLogin ? (
-                'Sign In'
               ) : (
-                'Create Account'
+                <>
+                  <span>{isLogin ? 'Sign in' : 'Create account'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
               )}
             </button>
           </form>
 
-          {/* Toggle Tab Footer */}
-          <div className="text-center pt-2">
-            <button
-              type="button"
-              onClick={() => { setIsLogin(!isLogin); setError(null); setSuccess(null); }}
-              className="text-xs text-indigo-600 hover:text-indigo-500 font-semibold transition-colors"
-            >
-              {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
-            </button>
-          </div>
+        </div>
 
+        {/* Badges Footer */}
+        <div className="flex flex-wrap justify-center items-center gap-2 text-xs text-[#888780] pt-6 border-t border-[#D3D1C7]/30">
+          <span className="flex items-center gap-1">
+            <Shield className="w-3.5 h-3.5 text-[#378ADD]" />
+            <span>Bank-grade security</span>
+          </span>
+          <span className="text-[#D3D1C7] font-normal">•</span>
+          <span className="flex items-center gap-1">
+            <Lock className="w-3.5 h-3.5 text-[#378ADD]" />
+            <span>DPDP compliant</span>
+          </span>
+          <span className="text-[#D3D1C7] font-normal">•</span>
+          <span className="flex items-center gap-1">
+            <Coins className="w-3.5 h-3.5 text-[#378ADD]" />
+            <span>INR only</span>
+          </span>
         </div>
       </div>
 

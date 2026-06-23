@@ -12,6 +12,7 @@ GST_REGEX = re.compile(r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1
 class ClientBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     email: Optional[str] = None
+    phone: Optional[str] = None
     gst_number: Optional[str] = None
     address: Optional[str] = None
 
@@ -86,6 +87,17 @@ class InvoiceBase(BaseModel):
 
 class InvoiceCreate(InvoiceBase):
     items: List[InvoiceItemCreate] = Field(..., min_items=1)
+
+class InvoiceStatusUpdate(BaseModel):
+    status: str = Field(..., min_length=1)
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: str) -> str:
+        valid_statuses = {"Draft", "Sent", "Paid", "Overdue"}
+        if v not in valid_statuses:
+            raise ValueError(f"Status must be one of {valid_statuses}")
+        return v
 
 class InvoiceResponse(InvoiceBase):
     id: UUID

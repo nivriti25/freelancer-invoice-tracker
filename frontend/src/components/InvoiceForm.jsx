@@ -189,7 +189,7 @@ export default function InvoiceForm({ isOpen, onClose, onSuccess, clients }) {
                 required
                 value={clientId}
                 onChange={(e) => setClientId(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-indigo-500 transition-colors"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-[#378ADD] transition-colors"
               >
                 <option value="" disabled>-- Select Client --</option>
                 {clients.map(client => (
@@ -206,7 +206,7 @@ export default function InvoiceForm({ isOpen, onClose, onSuccess, clients }) {
                 placeholder="INV-XXXX"
                 value={invoiceNumber}
                 onChange={(e) => setInvoiceNumber(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-indigo-500 transition-colors"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-[#378ADD] transition-colors"
               />
             </div>
 
@@ -215,7 +215,7 @@ export default function InvoiceForm({ isOpen, onClose, onSuccess, clients }) {
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-indigo-500 transition-colors"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-[#378ADD] transition-colors"
               >
                 <option value="Draft">Draft</option>
                 <option value="Sent">Sent</option>
@@ -233,7 +233,7 @@ export default function InvoiceForm({ isOpen, onClose, onSuccess, clients }) {
                 required
                 value={issueDate}
                 onChange={(e) => setIssueDate(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-indigo-500 transition-colors"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-[#378ADD] transition-colors"
               />
             </div>
 
@@ -244,41 +244,63 @@ export default function InvoiceForm({ isOpen, onClose, onSuccess, clients }) {
                 required
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-indigo-500 transition-colors"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-[#378ADD] transition-colors"
               />
             </div>
           </div>
 
           {/* Invoice Items Section */}
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
+          <div className="space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Invoice Items</label>
               <button
                 type="button"
                 onClick={handleAddItem}
-                className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-500 transition-colors"
+                className="flex items-center gap-1 text-xs font-semibold text-[#042C53] hover:text-[#378ADD] transition-colors bg-[#378ADD]/10 hover:bg-[#378ADD]/20 px-2.5 py-1.5 rounded-lg"
               >
-                <Plus className="w-4 h-4" /> Add Item
+                <Plus className="w-3.5 h-3.5" /> Add Item
               </button>
             </div>
 
             {/* List of Items */}
-            <div className="space-y-3">
-              {items.map((item, idx) => (
-                <div key={idx} className="flex flex-col md:flex-row gap-3 bg-slate-50 border border-slate-200 p-4 rounded-xl items-start md:items-center">
-                  <div className="flex-1 w-full space-y-1">
-                    <input
-                      type="text"
-                      required
-                      placeholder="Item Description (e.g. Design Consulting)"
-                      value={item.description}
-                      onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
+            <div className="space-y-4 md:space-y-2">
+              {/* Header for Desktop */}
+              <div className="hidden md:grid md:grid-cols-[1fr_80px_130px_90px_110px_40px] gap-3 px-2 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                <div>Item Description</div>
+                <div className="text-center">Qty</div>
+                <div className="text-left pl-7">Rate (₹)</div>
+                <div className="text-left pl-3">GST %</div>
+                <div className="text-right pr-2">Amount (₹)</div>
+                <div></div>
+              </div>
 
-                  <div className="grid grid-cols-3 gap-2 w-full md:w-auto">
-                    <div className="space-y-0.5">
+              {items.map((item, idx) => {
+                const qty = parseFloat(item.quantity) || 0;
+                const rate = parseFloat(item.rate) || 0;
+                const gst = parseFloat(item.gst_rate) || 0;
+                const rowTotal = qty * rate * (1 + gst / 100);
+
+                return (
+                  <div 
+                    key={idx} 
+                    className="grid grid-cols-6 md:grid-cols-[1fr_80px_130px_90px_110px_40px] gap-3 bg-slate-50 md:bg-white border border-slate-200 md:border-b md:border-slate-100 md:border-t-0 md:border-x-0 p-4 md:p-2 rounded-xl md:rounded-none items-start md:items-center hover:bg-slate-50/40 transition-colors animate-in fade-in-50 duration-200"
+                  >
+                    {/* Description */}
+                    <div className="col-span-6 md:col-span-1 w-full space-y-1 md:space-y-0">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 md:hidden">Description</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Design Consulting"
+                        value={item.description}
+                        onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
+                        className="w-full px-3 py-2 bg-white md:bg-slate-50/50 border border-slate-200 rounded-lg text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:border-[#378ADD] focus:bg-white transition-colors"
+                      />
+                    </div>
+
+                    {/* Qty */}
+                    <div className="col-span-2 md:col-span-1 w-full space-y-1 md:space-y-0">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 md:hidden">Qty</label>
                       <input
                         type="number"
                         required
@@ -287,54 +309,81 @@ export default function InvoiceForm({ isOpen, onClose, onSuccess, clients }) {
                         placeholder="Qty"
                         value={item.quantity}
                         onChange={(e) => handleItemChange(idx, 'quantity', e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 text-sm text-center focus:outline-none focus:border-indigo-500"
+                        className="w-full px-3 py-2 bg-white md:bg-slate-50/50 border border-slate-200 rounded-lg text-slate-900 text-sm text-left md:text-center focus:outline-none focus:border-[#378ADD] focus:bg-white transition-colors"
                       />
                     </div>
 
-                    <div className="space-y-0.5">
-                      <input
-                        type="number"
-                        required
-                        min="0"
-                        step="any"
-                        placeholder="Rate"
-                        value={item.rate}
-                        onChange={(e) => handleItemChange(idx, 'rate', e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 text-sm text-center focus:outline-none focus:border-indigo-500"
-                      />
+                    {/* Rate */}
+                    <div className="col-span-2 md:col-span-1 w-full space-y-1 md:space-y-0">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 md:hidden">Rate (₹)</label>
+                      <div className="relative rounded-lg shadow-sm">
+                        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                          <span className="text-slate-400 text-sm font-medium">₹</span>
+                        </div>
+                        <input
+                          type="number"
+                          required
+                          min="0"
+                          step="any"
+                          placeholder="0.00"
+                          value={item.rate}
+                          onChange={(e) => handleItemChange(idx, 'rate', e.target.value)}
+                          className="w-full pl-7 pr-3 py-2 bg-white md:bg-slate-50/50 border border-slate-200 rounded-lg text-slate-900 text-sm text-left focus:outline-none focus:border-[#378ADD] focus:bg-white transition-colors"
+                        />
+                      </div>
                     </div>
 
-                    <div className="space-y-0.5 relative">
-                      <input
-                        type="number"
-                        required
-                        min="0"
-                        max="100"
-                        placeholder="GST %"
-                        value={item.gst_rate}
-                        onChange={(e) => handleItemChange(idx, 'gst_rate', e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-900 text-sm text-center focus:outline-none focus:border-indigo-500"
-                      />
+                    {/* GST % */}
+                    <div className="col-span-2 md:col-span-1 w-full space-y-1 md:space-y-0">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 md:hidden">GST %</label>
+                      <div className="relative rounded-lg shadow-sm">
+                        <input
+                          type="number"
+                          required
+                          min="0"
+                          max="100"
+                          placeholder="18"
+                          value={item.gst_rate}
+                          onChange={(e) => handleItemChange(idx, 'gst_rate', e.target.value)}
+                          className="w-full pl-3 pr-7 py-2 bg-white md:bg-slate-50/50 border border-slate-200 rounded-lg text-slate-900 text-sm text-left focus:outline-none focus:border-[#378ADD] focus:bg-white transition-colors"
+                        />
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                          <span className="text-slate-400 text-sm font-medium">%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Total Amount Preview */}
+                    <div className="col-span-4 md:col-span-1 w-full space-y-1 md:space-y-0 md:text-right">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 md:hidden">Amount</label>
+                      <div className="px-3 py-2 md:px-0 md:py-0 text-sm font-semibold text-slate-700 bg-slate-100 md:bg-transparent rounded-lg md:rounded-none flex items-center md:justify-end h-[38px] md:h-auto">
+                        {formatRupee(rowTotal)}
+                      </div>
+                    </div>
+
+                    {/* Delete Action */}
+                    <div className="col-span-2 md:col-span-1 w-full flex justify-end items-end md:justify-center md:items-center h-full pt-4 md:pt-0">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveItem(idx)}
+                        disabled={items.length === 1}
+                        className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center justify-center border border-slate-200 md:border-0 w-full md:w-auto h-[38px] md:h-auto"
+                        title="Remove item"
+                      >
+                        <Trash2 className="w-4 h-4 mr-1.5 md:mr-0" />
+                        <span className="text-xs font-semibold md:hidden">Delete</span>
+                      </button>
                     </div>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveItem(idx)}
-                    disabled={items.length === 1}
-                    className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors self-end md:self-auto"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
           {/* Math Calculations Summary Drawer */}
           <div className="border border-slate-200 pt-4 flex flex-col md:flex-row md:justify-between items-start md:items-center gap-4 bg-slate-50 p-4 rounded-xl">
             <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold">
-              <Calculator className="w-4.5 h-4.5 text-indigo-650" />
+              <Calculator className="w-4.5 h-4.5 text-[#378ADD]" />
               <span>GST calculations are previewed automatically</span>
             </div>
             
@@ -349,7 +398,7 @@ export default function InvoiceForm({ isOpen, onClose, onSuccess, clients }) {
               </div>
               <div className="flex justify-between text-slate-900 border-t border-slate-200 pt-1.5 text-base font-bold">
                 <span>Grand Total:</span>
-                <span className="text-indigo-600">{formatRupee(totals.total)}</span>
+                <span className="text-[#042C53]">{formatRupee(totals.total)}</span>
               </div>
             </div>
           </div>
@@ -366,7 +415,7 @@ export default function InvoiceForm({ isOpen, onClose, onSuccess, clients }) {
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 bg-indigo-600 hover:bg-indigo-550 disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/10"
+              className="flex-1 bg-[#042C53] hover:bg-[#378ADD] disabled:opacity-50 disabled:cursor-not-allowed text-white py-3 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-1.5"
             >
               {loading ? (
                 <>

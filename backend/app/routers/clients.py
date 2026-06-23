@@ -42,6 +42,7 @@ async def create_client(
         user_id=current_user_id,
         name=client_in.name,
         email=client_in.email,
+        phone=client_in.phone,
         gst_number=client_in.gst_number,
         address=client_in.address
     )

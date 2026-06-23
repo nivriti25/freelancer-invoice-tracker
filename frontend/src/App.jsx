@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { IndianRupee, FileText, Users, CheckCircle, Clock, Plus, TrendingUp, LogOut, Loader2, PlusCircle, AlertCircle, AlertTriangle, Trash2, Landmark, Mail, MapPin, Search, User } from 'lucide-react';
+import { IndianRupee, FileText, Users, CheckCircle, Clock, Plus, TrendingUp, LogOut, Loader2, PlusCircle, AlertCircle, AlertTriangle, Trash2, Landmark, Mail, MapPin, Search, User, Phone } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import ClientForm from './components/ClientForm';
@@ -28,8 +28,10 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard' or 'clients'
+  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard', 'clients', or 'invoices'
   const [clientSearchQuery, setClientSearchQuery] = useState('');
+  const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('All');
 
   const handleDeleteClient = async (clientId, clientName) => {
     const confirmDelete = window.confirm(
@@ -55,6 +57,57 @@ function Dashboard() {
       await fetchData();
     } catch (err) {
       setError(err.message || 'Error deleting client.');
+    }
+  };
+
+  const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete Invoice ${invoiceNumber}? This will permanently remove it from the database.`
+    );
+    if (!confirmDelete) return;
+
+    setError(null);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/invoices/${invoiceId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        const errMsg = errData.detail || 'Failed to delete invoice';
+        throw new Error(errMsg);
+      }
+
+      await fetchData();
+    } catch (err) {
+      setError(err.message || 'Error deleting invoice.');
+    }
+  };
+
+  const handleUpdateInvoiceStatus = async (invoiceId, newStatus) => {
+    setError(null);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/invoices/${invoiceId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        const errMsg = errData.detail || 'Failed to update status';
+        throw new Error(errMsg);
+      }
+
+      await fetchData();
+    } catch (err) {
+      setError(err.message || 'Error updating status.');
     }
   };
 
@@ -168,11 +221,11 @@ function Dashboard() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-6">
               <div className="flex items-center gap-2.5">
-                <div className="bg-indigo-600 p-2 rounded-lg text-white">
+                <div className="bg-[#378ADD] p-2 rounded-lg text-white">
                   <FileText className="w-6 h-6" />
                 </div>
-                <span className="font-bold text-xl tracking-tight bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                  InvoiceFlow
+                <span className="font-bold text-xl tracking-tight text-[#042C53] font-sans">
+                  Ledgr
                 </span>
               </div>
               
@@ -182,7 +235,7 @@ function Dashboard() {
                   onClick={() => setCurrentView('dashboard')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
                     currentView === 'dashboard'
-                      ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/20'
+                      ? 'bg-white text-[#042C53] shadow-sm border border-slate-200/20'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
@@ -193,11 +246,22 @@ function Dashboard() {
                   onClick={() => setCurrentView('clients')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
                     currentView === 'clients'
-                      ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/20'
+                      ? 'bg-white text-[#042C53] shadow-sm border border-slate-200/20'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
                   Clients
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentView('invoices')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                    currentView === 'invoices'
+                      ? 'bg-white text-[#042C53] shadow-sm border border-slate-200/20'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Invoices
                 </button>
               </div>
             </div>
@@ -206,20 +270,6 @@ function Dashboard() {
               <span className="text-slate-600 text-xs hidden lg:inline-block bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl font-medium">
                 {user?.email}
               </span>
-              <button 
-                onClick={() => setIsClientFormOpen(true)}
-                className="flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 shadow-sm"
-              >
-                <PlusCircle className="w-4 h-4 text-slate-500" />
-                Add Client
-              </button>
-              <button 
-                onClick={() => setIsInvoiceFormOpen(true)}
-                className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 shadow-md shadow-indigo-600/10"
-              >
-                <Plus className="w-4 h-4" />
-                New Invoice
-              </button>
               <button 
                 onClick={signOut}
                 title="Sign Out"
@@ -243,7 +293,7 @@ function Dashboard() {
 
         {loading && invoices.length === 0 ? (
           <div className="h-96 flex flex-col items-center justify-center gap-3">
-            <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+            <Loader2 className="w-8 h-8 animate-spin text-[#042C53]" />
             <p className="text-slate-500 text-sm font-semibold">Loading metrics...</p>
           </div>
         ) : currentView === 'dashboard' ? (
@@ -252,7 +302,7 @@ function Dashboard() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
               <div className="bg-white border border-slate-200/80 rounded-2xl p-6 transition-all hover:border-slate-300 shadow-sm">
                 <div className="flex justify-between items-start mb-4">
-                  <div className="p-3 bg-indigo-500/10 text-indigo-600 rounded-xl">
+                  <div className="p-3 bg-[#378ADD]/10 text-[#042C53] rounded-xl">
                     <IndianRupee className="w-6 h-6" />
                   </div>
                   <span className="flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full">
@@ -285,7 +335,7 @@ function Dashboard() {
 
               <div className="bg-white border border-slate-200/80 rounded-2xl p-6 transition-all hover:border-slate-300 shadow-sm">
                 <div className="flex justify-between items-start mb-4">
-                  <div className="p-3 bg-purple-500/10 text-purple-650 rounded-xl">
+                  <div className="p-3 bg-[#378ADD]/10 text-[#042C53] rounded-xl">
                     <Users className="w-6 h-6" />
                   </div>
                 </div>
@@ -304,8 +354,8 @@ function Dashboard() {
                     <BarChart data={chartData}>
                       <defs>
                         <linearGradient id="colorBarRevenue" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#4f46e5" stopOpacity={0.95}/>
-                          <stop offset="100%" stopColor="#818cf8" stopOpacity={0.7}/>
+                          <stop offset="0%" stopColor="#042C53" stopOpacity={0.95}/>
+                          <stop offset="100%" stopColor="#378ADD" stopOpacity={0.7}/>
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -321,22 +371,26 @@ function Dashboard() {
                 </div>
               </div>
 
-              {/* Recent Invoices List */}
+              {/* Overdue Invoices List */}
               <div className="bg-white border border-slate-200/80 rounded-2xl p-6 flex flex-col max-h-[390px] shadow-sm">
-                <h3 className="text-lg font-bold mb-4 text-slate-850">Recent Invoices</h3>
+                <h3 className="text-lg font-bold mb-4 text-slate-850">Overdue Invoices</h3>
                 
                 <div className="space-y-4 overflow-y-auto flex-1 pr-1">
-                  {invoices.length === 0 ? (
-                    <div className="h-48 flex flex-col items-center justify-center gap-1.5 text-slate-400">
-                      <FileText className="w-8 h-8 opacity-40" />
-                      <p className="text-xs">No invoices created yet</p>
-                    </div>
-                  ) : (
-                    invoices.map((inv) => (
+                  {(() => {
+                    const overdueInvoices = invoices.filter(inv => inv.status === 'Overdue');
+                    if (overdueInvoices.length === 0) {
+                      return (
+                        <div className="h-48 flex flex-col items-center justify-center gap-1.5 text-slate-400">
+                          <CheckCircle className="w-8 h-8 text-emerald-500 opacity-80" />
+                          <p className="text-xs font-semibold text-slate-500">All caught up! No overdue invoices.</p>
+                        </div>
+                      );
+                    }
+                    return overdueInvoices.map((inv) => (
                       <div key={inv.id} className="flex justify-between items-center p-3.5 bg-slate-50 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors">
                         <div>
                           <h4 className="font-bold text-sm text-slate-700">{getClientName(inv.client_id)}</h4>
-                          <p className="text-xs text-slate-500 mt-0.5">{inv.invoice_number} • {inv.issue_date}</p>
+                          <p className="text-xs text-slate-550 mt-0.5">{inv.invoice_number} • Due: {inv.due_date}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-sm font-bold text-slate-800">{formatRupee(inv.total_amount)}</p>
@@ -345,20 +399,20 @@ function Dashboard() {
                           </span>
                         </div>
                       </div>
-                    ))
-                  )}
+                    ));
+                  })()}
                 </div>
               </div>
             </div>
           </>
-        ) : (
+        ) : currentView === 'clients' ? (
           /* Clients Directory View */
           <div className="space-y-6">
             {/* Header Actions */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border border-slate-200/80 p-5 rounded-2xl shadow-sm">
               <div>
                 <h2 className="text-xl font-bold text-slate-800 font-sans">Client Directory</h2>
-                <p className="text-slate-550 text-xs font-semibold mt-0.5">Manage billing details and view client accounts</p>
+                <p className="text-slate-550 text-xs font-semibold mt-0.5"></p>
               </div>
               
               <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -371,13 +425,13 @@ function Dashboard() {
                     placeholder="Search name or email..."
                     value={clientSearchQuery}
                     onChange={(e) => setClientSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/25 transition-all"
+                    className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:bg-white focus:border-[#378ADD] focus:ring-1 focus:ring-[#378ADD]/25 transition-all"
                   />
                 </div>
                 
                 <button
                   onClick={() => setIsClientFormOpen(true)}
-                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 shadow-md shadow-indigo-600/10 shrink-0"
+                  className="flex items-center gap-1.5 bg-[#042C53] hover:bg-[#378ADD] text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 shrink-0"
                 >
                   <Plus className="w-4 h-4" /> Add Client
                 </button>
@@ -394,7 +448,7 @@ function Dashboard() {
                 <p className="text-slate-550 text-xs mt-1">Get started by creating your first client profile.</p>
                 <button
                   onClick={() => setIsClientFormOpen(true)}
-                  className="mt-4 bg-indigo-600 hover:bg-indigo-550 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all"
+                  className="mt-4 bg-[#042C53] hover:bg-[#378ADD] text-white px-4 py-2 rounded-xl text-xs font-semibold transition-all"
                 >
                   Create Client
                 </button>
@@ -426,13 +480,13 @@ function Dashboard() {
                         {/* Card Body */}
                         <div className="p-6 space-y-4">
                           <div className="flex items-center gap-3.5">
-                            <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm select-none">
+                            <div className="w-11 h-11 rounded-xl bg-[#378ADD]/10 border border-[#B5D4F4]/20 flex items-center justify-center text-[#042C53] font-bold text-sm select-none">
                               {initials}
                             </div>
                             <div className="min-w-0">
                               <h4 className="font-bold text-base text-slate-800 truncate font-sans">{client.name}</h4>
                               {client.email ? (
-                                <a href={`mailto:${client.email}`} className="text-indigo-600 hover:text-indigo-550 text-xs font-semibold flex items-center gap-1 truncate mt-0.5">
+                                <a href={`mailto:${client.email}`} className="text-[#378ADD] hover:text-[#378ADD]/80 text-xs font-semibold flex items-center gap-1 truncate mt-0.5">
                                   <Mail className="w-3.5 h-3.5 shrink-0" />
                                   {client.email}
                                 </a>
@@ -444,6 +498,12 @@ function Dashboard() {
 
                           {/* Details fields */}
                           <div className="space-y-2 border-t border-slate-100 pt-3.5 text-xs text-slate-650">
+                            {client.phone && (
+                              <div className="flex items-center gap-2">
+                                <Phone className="w-4 h-4 text-slate-400 shrink-0" />
+                                <span className="font-semibold text-slate-700">{client.phone}</span>
+                              </div>
+                            )}
                             {client.gst_number && (
                               <div className="flex items-center gap-2">
                                 <Landmark className="w-4 h-4 text-slate-400 shrink-0" />
@@ -479,6 +539,159 @@ function Dashboard() {
                           >
                             <Trash2 className="w-3.5 h-3.5" /> Remove Client
                           </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        ) : (
+          /* Invoices View */
+          <div className="space-y-6">
+            {/* Header Actions */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border border-slate-200/80 p-5 rounded-2xl shadow-sm">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800 font-sans">Manage Invoices</h2>
+              
+              </div>
+              
+              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                <div className="relative flex-1 min-w-[200px]">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
+                    <Search className="w-4.5 h-4.5" />
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Search invoice # or client..."
+                    value={invoiceSearchQuery}
+                    onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:bg-white focus:border-[#378ADD] focus:ring-1 focus:ring-[#378ADD]/25 transition-all"
+                  />
+                </div>
+
+                <select
+                  value={invoiceStatusFilter}
+                  onChange={(e) => setInvoiceStatusFilter(e.target.value)}
+                  className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:bg-white focus:border-[#378ADD] transition-colors"
+                >
+                  <option value="All">All Statuses</option>
+                  <option value="Draft">Draft</option>
+                  <option value="Sent">Sent</option>
+                  <option value="Paid">Paid</option>
+                  <option value="Overdue">Overdue</option>
+                </select>
+                
+                <button
+                  onClick={() => setIsInvoiceFormOpen(true)}
+                  className="flex items-center gap-1.5 bg-[#042C53] hover:bg-[#378ADD] text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 shrink-0"
+                >
+                  <Plus className="w-4 h-4" /> New Invoice
+                </button>
+              </div>
+            </div>
+
+            {/* Invoices List */}
+            {invoices.length === 0 ? (
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-12 text-center shadow-sm">
+                <div className="mx-auto w-12 h-12 bg-slate-100 text-slate-450 rounded-xl flex items-center justify-center mb-3">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <h3 className="text-sm font-bold text-slate-700">No invoices drafted yet</h3>
+                <p className="text-slate-550 text-xs mt-1">Generate billing statements for your clients.</p>
+                <button
+                  onClick={() => setIsInvoiceFormOpen(true)}
+                  className="mt-4 bg-[#042C53] hover:bg-[#378ADD] text-white px-4 py-2 rounded-xl text-xs font-semibold transition-all"
+                >
+                  Draft Invoice
+                </button>
+              </div>
+            ) : (() => {
+              const filteredInvoices = invoices.filter(inv => {
+                const clientName = getClientName(inv.client_id).toLowerCase();
+                const matchesSearch = inv.invoice_number.toLowerCase().includes(invoiceSearchQuery.toLowerCase()) || 
+                  clientName.includes(invoiceSearchQuery.toLowerCase());
+                const matchesStatus = invoiceStatusFilter === 'All' || inv.status === invoiceStatusFilter;
+                return matchesSearch && matchesStatus;
+              });
+
+              if (filteredInvoices.length === 0) {
+                return (
+                  <div className="bg-white border border-slate-200/80 rounded-2xl p-12 text-center shadow-sm">
+                    <h3 className="text-sm font-bold text-slate-700">No matching invoices found</h3>
+                    <p className="text-slate-550 text-xs mt-1">Try adjusting your filters or search query.</p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-4">
+                  {filteredInvoices.map((inv) => {
+                    const statusColors = {
+                      Paid: 'border-emerald-200/50 bg-emerald-50 text-emerald-700',
+                      Sent: 'border-blue-200/50 bg-blue-50 text-blue-700',
+                      Overdue: 'border-rose-200/50 bg-rose-50 text-rose-700',
+                      Draft: 'border-slate-250 bg-slate-100 text-slate-750'
+                    };
+
+                    return (
+                      <div key={inv.id} className="bg-white border border-slate-200/80 rounded-2xl shadow-sm hover:shadow-md hover:border-slate-300 transition-all overflow-hidden flex flex-col">
+                        {/* Card Body */}
+                        <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+                          {/* Invoice Metadata */}
+                          <div className="lg:col-span-4 min-w-0 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-base text-slate-800 font-sans tracking-tight">{inv.invoice_number}</h4>
+                              <select
+                                value={inv.status}
+                                onChange={(e) => handleUpdateInvoiceStatus(inv.id, e.target.value)}
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border focus:outline-none transition-colors cursor-pointer ${statusColors[inv.status] || statusColors.Draft}`}
+                              >
+                                <option value="Draft">Draft</option>
+                                <option value="Sent">Sent</option>
+                                <option value="Paid">Paid</option>
+                                <option value="Overdue">Overdue</option>
+                              </select>
+                            </div>
+                            <p className="text-sm font-bold text-slate-705 truncate">{getClientName(inv.client_id)}</p>
+                            <div className="flex items-center gap-3 text-xs text-slate-500 font-semibold">
+                              <span>Issued: {inv.issue_date}</span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0"></span>
+                              <span>Due: {inv.due_date}</span>
+                            </div>
+                          </div>
+
+                          {/* Nested items snippet */}
+                          <div className="lg:col-span-4 border-t lg:border-t-0 lg:border-l border-slate-150 pt-4 lg:pt-0 lg:pl-6 space-y-2">
+                            <p className="text-[10px] uppercase font-bold text-slate-450 tracking-wider">Line Items ({inv.items?.length || 0})</p>
+                            <div className="space-y-1.5 max-h-[85px] overflow-y-auto pr-1">
+                              {inv.items && inv.items.map((item, idx) => (
+                                <div key={item.id || idx} className="flex justify-between items-center text-xs text-slate-600 font-medium">
+                                  <span className="truncate max-w-[70%]">{item.description}</span>
+                                  <span className="shrink-0 text-slate-450 font-bold">{item.quantity} × {formatRupee(item.rate)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Amount and delete action */}
+                          <div className="lg:col-span-4 border-t lg:border-t-0 lg:border-l border-slate-150 pt-4 lg:pt-0 lg:pl-6 flex flex-row lg:flex-col justify-between lg:justify-center items-center lg:items-end gap-3">
+                            <div className="text-left lg:text-right space-y-0.5">
+                              <p className="text-[10px] uppercase font-bold text-slate-450 tracking-wider">Total Amount (GST Inc.)</p>
+                              <p className="text-xl font-extrabold text-[#042C53]">{formatRupee(inv.total_amount)}</p>
+                              <p className="text-[10px] text-slate-500 font-semibold">
+                                Subtotal: {formatRupee(inv.subtotal)} • GST: {formatRupee(inv.gst_amount)} ({inv.gst_rate}%)
+                              </p>
+                            </div>
+
+                            <button
+                              onClick={() => handleDeleteInvoice(inv.id, inv.invoice_number)}
+                              className="flex items-center gap-1.5 text-xs font-bold text-rose-600 hover:text-rose-500 hover:bg-rose-50 border border-transparent hover:border-rose-100 px-3.5 py-1.5 rounded-xl transition-all"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> Delete
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );

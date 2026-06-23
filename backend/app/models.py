@@ -30,6 +30,7 @@ class Client(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("public.profiles.id", ondelete="CASCADE"), nullable=False)
     name = Column(String, nullable=False)
     email = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
     gst_number = Column(String, nullable=True)
     address = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
