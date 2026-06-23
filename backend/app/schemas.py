@@ -41,6 +41,9 @@ class ClientCreate(ClientBase):
                 raise ValueError("Invalid GST number format")
         return v
 
+class ClientUpdate(ClientCreate):
+    pass
+
 class ClientResponse(ClientBase):
     id: UUID
     user_id: UUID
@@ -112,3 +115,13 @@ class InvoiceResponse(InvoiceBase):
     model_config = {
         "from_attributes": True
     }
+
+
+# --- Email dispatch schemas ---
+
+class SendInvoiceResponse(BaseModel):
+    """Response returned by POST /invoices/{invoice_id}/send."""
+    message: str
+    resend_id: Optional[str] = None
+    invoice_id: UUID
+    recipient_email: str

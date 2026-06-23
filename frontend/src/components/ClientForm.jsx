@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { X, User, Mail, Phone, Landmark, MapPin, Loader2, AlertCircle } from 'lucide-react';
 
-export default function ClientForm({ isOpen, onClose, onSuccess }) {
+export default function ClientForm({ isOpen, onClose, onSuccess, clientToEdit }) {
   const { session } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -11,6 +11,22 @@ export default function ClientForm({ isOpen, onClose, onSuccess }) {
   const [address, setAddress] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (clientToEdit) {
+      setName(clientToEdit.name || '');
+      setEmail(clientToEdit.email || '');
+      setPhone(clientToEdit.phone || '');
+      setGstNumber(clientToEdit.gst_number || '');
+      setAddress(clientToEdit.address || '');
+    } else {
+      setName('');
+      setEmail('');
+      setPhone('');
+      setGstNumber('');
+      setAddress('');
+    }
+  }, [clientToEdit, isOpen]);
 
   if (!isOpen) return null;
 
@@ -27,8 +43,13 @@ export default function ClientForm({ isOpen, onClose, onSuccess }) {
     }
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/clients`, {
-        method: 'POST',
+      const url = clientToEdit
+        ? `${import.meta.env.VITE_API_URL}/clients/${clientToEdit.id}`
+        : `${import.meta.env.VITE_API_URL}/clients`;
+      const method = clientToEdit ? 'PATCH' : 'POST';
+
+      const response = await fetch(url, {
+        method: method,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session?.access_token}`,
@@ -49,7 +70,7 @@ export default function ClientForm({ isOpen, onClose, onSuccess }) {
           ? details 
           : Array.isArray(details) 
             ? details.map(d => d.msg).join(', ') 
-            : 'Failed to create client.';
+            : `Failed to ${clientToEdit ? 'update' : 'create'} client.`;
         throw new Error(errMsg);
       }
 
@@ -63,7 +84,7 @@ export default function ClientForm({ isOpen, onClose, onSuccess }) {
       setGstNumber('');
       setAddress('');
     } catch (err) {
-      setError(err.message || 'An error occurred while creating client.');
+      setError(err.message || `An error occurred while ${clientToEdit ? 'updating' : 'creating'} client.`);
     } finally {
       setLoading(false);
     }
@@ -78,7 +99,7 @@ export default function ClientForm({ isOpen, onClose, onSuccess }) {
       <div className="bg-white border border-slate-200 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl relative z-10 animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
-          <h3 className="font-bold text-lg text-slate-800">Add New Client</h3>
+          <h3 className="font-bold text-lg text-slate-800">{clientToEdit ? 'Edit Client Details' : 'Add New Client'}</h3>
           <button onClick={onClose} className="p-1 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 transition-colors">
             <X className="w-5 h-5" />
           </button>
@@ -194,7 +215,7 @@ export default function ClientForm({ isOpen, onClose, onSuccess }) {
                   Saving...
                 </>
               ) : (
-                'Save Client'
+                clientToEdit ? 'Update Client' : 'Save Client'
               )}
             </button>
           </div>

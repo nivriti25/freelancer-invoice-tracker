@@ -86,3 +86,34 @@ async def delete_client(
     db.delete(client)
     db.commit()
     return
+
+@router.patch("/{client_id}", response_model=schemas.ClientResponse)
+async def update_client(
+    client_id: UUID,
+    client_in: schemas.ClientUpdate,
+    current_user_id: UUID = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
+    """
+    Update an existing client belonging to the authenticated user.
+    """
+    client = db.query(models.Client).filter(
+        models.Client.id == client_id,
+        models.Client.user_id == current_user_id
+    ).first()
+    
+    if not client:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Client not found or does not belong to the authenticated user"
+        )
+        
+    client.name = client_in.name
+    client.email = client_in.email
+    client.phone = client_in.phone
+    client.gst_number = client_in.gst_number
+    client.address = client_in.address
+    
+    db.commit()
+    db.refresh(client)
+    return client

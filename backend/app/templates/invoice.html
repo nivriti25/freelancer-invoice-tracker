@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice - {{ invoice.invoice_number }}</title>
+    <style>
+        /* Base Reset and Fonts */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: #1e293b;
+            background-color: #f8fafc;
+            line-height: 1.5;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        /* Printable / A4 Sheet styling */
+        .invoice-container {
+            max-width: 800px;
+            margin: 40px auto;
+            background: #ffffff;
+            padding: 48px;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e2e8f0;
+        }
+
+        @media print {
+            body {
+                background-color: #ffffff;
+                color: #000000;
+            }
+            .invoice-container {
+                margin: 0;
+                padding: 0;
+                box-shadow: none;
+                border: none;
+                border-radius: 0;
+                max-width: 100%;
+                width: 100%;
+            }
+            @page {
+                size: A4 portrait;
+                margin: 20mm;
+            }
+        }
+
+        /* Invoice Header Styling */
+        .invoice-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #f1f5f9;
+            padding-bottom: 24px;
+            margin-bottom: 32px;
+        }
+
+        .brand-section h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #4f46e5;
+            letter-spacing: -0.025em;
+        }
+
+        .brand-section p {
+            font-size: 13px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        .meta-section {
+            text-align: right;
+        }
+
+        .invoice-title {
+            font-size: 28px;
+            font-weight: 800;
+            color: #0f172a;
+            letter-spacing: -0.03em;
+            text-transform: uppercase;
+        }
+
+        /* Status Badges */
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 8px;
+        }
+
+        .status-paid {
+            background-color: #dcfce7;
+            color: #15803d;
+        }
+
+        .status-sent {
+            background-color: #dbeafe;
+            color: #1d4ed8;
+        }
+
+        .status-overdue {
+            background-color: #fee2e2;
+            color: #b91c1c;
+        }
+
+        .status-draft {
+            background-color: #f1f5f9;
+            color: #475569;
+        }
+
+        /* Columns layout for Parties / Details */
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-bottom: 36px;
+        }
+
+        @media (max-width: 600px) {
+            .details-grid {
+                grid-template-columns: 1fr;
+                gap: 24px;
+            }
+        }
+
+        .details-column h3 {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #94a3b8;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #f1f5f9;
+            padding-bottom: 4px;
+        }
+
+        .party-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 6px;
+        }
+
+        .party-details {
+            font-size: 13px;
+            color: #475569;
+            line-height: 1.6;
+        }
+
+        .party-details strong {
+            color: #334155;
+        }
+
+        /* Invoice Meta Information Grid */
+        .invoice-info-bar {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            background-color: #f8fafc;
+            border: 1px solid #f1f5f9;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 36px;
+            gap: 16px;
+        }
+
+        .info-item {
+            text-align: center;
+        }
+
+        .info-item:not(:last-child) {
+            border-right: 1px solid #e2e8f0;
+        }
+
+        .info-label {
+            font-size: 11px;
+            color: #64748b;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            margin-bottom: 4px;
+        }
+
+        .info-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        /* Table Styling */
+        .invoice-table-wrapper {
+            margin-bottom: 32px;
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        .invoice-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        .invoice-table th {
+            background-color: #f8fafc;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #475569;
+            padding: 12px 16px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .invoice-table td {
+            padding: 16px;
+            font-size: 13px;
+            border-bottom: 1px solid #f1f5f9;
+            color: #334155;
+            vertical-align: top;
+        }
+
+        .invoice-table tr:hover td {
+            background-color: #fafafa;
+        }
+
+        .text-right {
+            text-align: right !important;
+        }
+
+        .text-center {
+            text-align: center !important;
+        }
+
+        .col-desc {
+            font-weight: 500;
+            color: #0f172a;
+        }
+
+        /* Invoice Summary/Totals Section */
+        .summary-container {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 40px;
+        }
+
+        .summary-box {
+            width: 320px;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 13px;
+            color: #475569;
+        }
+
+        .summary-row.total {
+            border-top: 2px solid #e2e8f0;
+            padding-top: 12px;
+            margin-top: 8px;
+            font-size: 18px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .summary-row.total .val {
+            color: #4f46e5;
+        }
+
+        /* Payment and Footer Notes */
+        .bottom-section {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 40px;
+            border-top: 1px solid #f1f5f9;
+            padding-top: 24px;
+        }
+
+        @media (max-width: 600px) {
+            .bottom-section {
+                grid-template-columns: 1fr;
+                gap: 24px;
+            }
+        }
+
+        .notes-card h4, .bank-card h4 {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #475569;
+            margin-bottom: 10px;
+        }
+
+        .notes-card p {
+            font-size: 12px;
+            color: #64748b;
+            line-height: 1.6;
+        }
+
+        .bank-card {
+            background-color: #f8fafc;
+            border: 1px dashed #cbd5e1;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .bank-details-list {
+            list-style: none;
+            font-size: 12px;
+            color: #475569;
+        }
+
+        .bank-details-list li {
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .bank-details-list li span.label {
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .bank-details-list li span.value {
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .invoice-footer {
+            margin-top: 48px;
+            text-align: center;
+            font-size: 11px;
+            color: #94a3b8;
+            border-top: 1px solid #f1f5f9;
+            padding-top: 16px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="invoice-container">
+    <!-- Header -->
+    <div class="invoice-header">
+        <div class="brand-section">
+            <h1>{{ user.name or "Freelancer Invoices" }}</h1>
+            {% if user.gst_number %}
+            <p>GSTIN: {{ user.gst_number }}</p>
+            {% endif %}
+        </div>
+        <div class="meta-section">
+            <div class="invoice-title">Invoice</div>
+            <span class="status-badge status-{{ invoice.status.lower() }}">{{ invoice.status }}</span>
+        </div>
+    </div>
+
+    <!-- Info Bar -->
+    <div class="invoice-info-bar">
+        <div class="info-item">
+            <div class="info-label">Invoice Number</div>
+            <div class="info-value">{{ invoice.invoice_number }}</div>
+        </div>
+        <div class="info-item">
+            <div class="info-label">Date of Issue</div>
+            <div class="info-value">{{ invoice.issue_date }}</div>
+        </div>
+        <div class="info-item">
+            <div class="info-label">Due Date</div>
+            <div class="info-value">{{ invoice.due_date }}</div>
+        </div>
+    </div>
+
+    <!-- Parties Grid -->
+    <div class="details-grid">
+        <!-- From Details -->
+        <div class="details-column">
+            <h3>From</h3>
+            <div class="party-name">{{ user.name or "Freelancer Name" }}</div>
+            <div class="party-details">
+                <!-- User details from profiles table -->
+                {% if user.email %}
+                <div>Email: {{ user.email }}</div>
+                {% endif %}
+                {% if user.phone %}
+                <div>Phone: {{ user.phone }}</div>
+                {% endif %}
+                {% if user.address %}
+                <div>{{ user.address }}</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- To Details -->
+        <div class="details-column">
+            <h3>Bill To</h3>
+            <div class="party-name">{{ client.name }}</div>
+            <div class="party-details">
+                {% if client.address %}
+                <div>{{ client.address }}</div>
+                {% endif %}
+                {% if client.email %}
+                <div><strong>Email:</strong> {{ client.email }}</div>
+                {% endif %}
+                {% if client.phone %}
+                <div><strong>Phone:</strong> {{ client.phone }}</div>
+                {% endif %}
+                {% if client.gst_number %}
+                <div><strong>GSTIN:</strong> {{ client.gst_number }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="invoice-table-wrapper">
+        <table class="invoice-table">
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th class="text-center" style="width: 100px;">Qty</th>
+                    <th class="text-right" style="width: 120px;">Rate</th>
+                    <th class="text-right" style="width: 140px;">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td class="col-desc">{{ item.description }}</td>
+                    <td class="text-center">{{ item.quantity }}</td>
+                    <td class="text-right">{{ item.rate }}</td>
+                    <td class="text-right">{{ item.amount }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Summary Box -->
+    <div class="summary-container">
+        <div class="summary-box">
+            <div class="summary-row">
+                <span>Subtotal</span>
+                <span>{{ invoice.subtotal }}</span>
+            </div>
+            <div class="summary-row">
+                <span>GST ({{ invoice.gst_rate }}%)</span>
+                <span>{{ invoice.gst_amount }}</span>
+            </div>
+            <div class="summary-row total">
+                <span>Total Amount</span>
+                <span class="val">{{ invoice.total_amount }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Section -->
+    <div class="bottom-section">
+        <!-- Notes -->
+        <div class="notes-card">
+            <h4>Payment Terms & Notes</h4>
+            <p>Please make the payment by the due date mentioned above. Standard interest rates or overdue policies may apply for delayed payments.</p>
+            <p style="margin-top: 8px;">If you have any questions concerning this invoice, contact the email listed above. Thank you for your business!</p>
+        </div>
+
+        <!-- Bank Details -->
+        <div class="bank-card">
+            <h4>Bank Transfer Details</h4>
+            {% if bank %}
+            <ul class="bank-details-list">
+                <li>
+                    <span class="label">Bank:</span>
+                    <span class="value">{{ bank.bank_name or "N/A" }}</span>
+                </li>
+                <li>
+                    <span class="label">Account Name:</span>
+                    <span class="value">{{ bank.account_holder_name or user.name or "N/A" }}</span>
+                </li>
+                <li>
+                    <span class="label">Account No:</span>
+                    <span class="value">{{ bank.account_number or "N/A" }}</span>
+                </li>
+                <li>
+                    <span class="label">IFSC Code:</span>
+                    <span class="value">{{ bank.ifsc_code or "N/A" }}</span>
+                </li>
+            </ul>
+            {% else %}
+            <p style="font-size: 11px; color: #94a3b8; font-style: italic;">No bank details configured.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="invoice-footer">
+        Generated electronically. Powered by Freelancer Invoice Tracker.
+    </div>
+</div>
+
+</body>
+</html>

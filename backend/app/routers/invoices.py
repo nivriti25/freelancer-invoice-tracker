@@ -1,15 +1,22 @@
 # pyrefly: ignore [missing-import]
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
+# pyrefly: ignore [missing-import]
+from fastapi.responses import HTMLResponse
+# pyrefly: ignore [missing-import]
+from fastapi.templating import Jinja2Templates
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 from uuid import UUID
 from decimal import Decimal
 from typing import List
+import os
 
 
 from app.database import get_db
 from app.auth import get_current_user_id
 from app import models, schemas
+from app.utils.pdf import generate_invoice_pdf
+from app.utils.email import send_invoice_email
 
 router = APIRouter(
     prefix="/invoices",
@@ -162,3 +169,364 @@ async def delete_invoice(
     db.commit()
     return
 
+
+# --- PDF/HTML Templating and Preview Engine ---
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+templates_dir = os.path.join(os.path.dirname(current_dir), "templates")
+templates = Jinja2Templates(directory=templates_dir)
+
+def format_currency(val: Decimal) -> str:
+    if val is None:
+        return "₹0.00"
+    return f"₹{val:,.2f}"
+
+def format_date(val) -> str:
+    if val is None:
+        return ""
+    if isinstance(val, str):
+        return val
+    return val.strftime("%d %b %Y")
+
+@router.get("/preview/demo", response_class=HTMLResponse)
+async def demo_invoice_preview(request: Request):
+    """
+    Developer preview endpoint rendering the invoice template with realistic mock data.
+    """
+    mock_invoice = {
+        "invoice_number": "INV-2026-042",
+        "issue_date": "23 Jun 2026",
+        "due_date": "07 Jul 2026",
+        "status": "Paid",
+        "subtotal": "₹75,000.00",
+        "gst_rate": "18.00",
+        "gst_amount": "₹13,500.00",
+        "total_amount": "₹88,500.00",
+    }
+    mock_client = {
+        "name": "Acme Technologies Ltd.",
+        "email": "billing@acme-tech.com",
+        "phone": "+91 98765 43210",
+        "gst_number": "29AAAAA1111A1Z1",
+        "address": "Building 4, Sector 7, Outer Ring Road, Bangalore, KA, 560103",
+    }
+    mock_user = {
+        "name": "Jane Doe Consulting",
+        "email": "hello@janedoe.io",
+        "phone": "+91 99999 88888",
+        "gst_number": "29BBBBB2222B2Z2",
+        "address": "Flat 302, Green Meadows Apt, HSR Layout, Bangalore, 560102",
+    }
+    mock_bank = {
+        "bank_name": "State Bank of India",
+        "account_holder_name": "Jane Doe Consulting",
+        "account_number": "30123456789",
+        "ifsc_code": "SBIN0001234",
+    }
+    mock_items = [
+        {
+            "description": "Full-Stack Development Consulting (June 2026)",
+            "quantity": "1.00",
+            "rate": "₹60,000.00",
+            "amount": "₹60,000.00"
+        },
+        {
+            "description": "UX Research & Wireframing Session",
+            "quantity": "5.00",
+            "rate": "₹3,000.00",
+            "amount": "₹15,000.00"
+        }
+    ]
+
+    return templates.TemplateResponse(
+        request=request,
+        name="invoice.html",
+        context={
+            "invoice": mock_invoice,
+            "client": mock_client,
+            "user": mock_user,
+            "bank": mock_bank,
+            "items": mock_items
+        }
+    )
+
+@router.get("/{invoice_id}/preview", response_class=HTMLResponse)
+async def get_invoice_preview(
+    invoice_id: UUID,
+    request: Request,
+    current_user_id: UUID = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
+    """
+    Render a real invoice in HTML format using the invoice template.
+    Verifies that the invoice belongs to the authenticated user.
+    """
+    invoice = db.query(models.Invoice).filter(
+        models.Invoice.id == invoice_id,
+        models.Invoice.user_id == current_user_id
+    ).first()
+
+    if not invoice:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invoice not found or does not belong to the authenticated user"
+        )
+
+    # Format values for representation
+    invoice_data = {
+        "invoice_number": invoice.invoice_number,
+        "issue_date": format_date(invoice.issue_date),
+        "due_date": format_date(invoice.due_date),
+        "status": invoice.status,
+        "subtotal": format_currency(invoice.subtotal),
+        "gst_rate": f"{invoice.gst_rate:.2f}" if invoice.gst_rate is not None else "18.00",
+        "gst_amount": format_currency(invoice.gst_amount),
+        "total_amount": format_currency(invoice.total_amount),
+    }
+
+    client_data = {
+        "name": invoice.client.name,
+        "email": invoice.client.email,
+        "phone": invoice.client.phone,
+        "gst_number": invoice.client.gst_number,
+        "address": invoice.client.address,
+    }
+
+    user_data = {
+        "name": invoice.user.business_name or invoice.user.name or "Freelancer",
+        "gst_number": invoice.user.gst_number,
+        "email": None, # Will fall back in template if not present
+        "phone": None,
+        "address": invoice.user.address,
+    }
+
+    # Extract bank details JSON
+    bank_data = invoice.user.bank_details if invoice.user.bank_details else None
+
+    items_data = []
+    for item in invoice.items:
+        qty = item.quantity if item.quantity is not None else Decimal("0.00")
+        rate = item.rate if item.rate is not None else Decimal("0.00")
+        amount = qty * rate
+        
+        items_data.append({
+            "description": item.description,
+            "quantity": f"{qty:.2f}",
+            "rate": format_currency(rate),
+            "amount": format_currency(amount)
+        })
+
+    return templates.TemplateResponse(
+        request=request,
+        name="invoice.html",
+        context={
+            "invoice": invoice_data,
+            "client": client_data,
+            "user": user_data,
+            "bank": bank_data,
+            "items": items_data
+        }
+    )
+
+
+@router.get("/preview/download-demo")
+async def demo_invoice_pdf_download():
+    """
+    Developer preview endpoint compiling the invoice layout with mock data into a PDF binary.
+    """
+    class MockObject:
+        def __init__(self, **kwargs):
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+                
+    mock_invoice = MockObject(
+        invoice_number="INV-2026-042",
+        issue_date="23 Jun 2026",
+        due_date="07 Jul 2026",
+        status="Paid",
+        subtotal=Decimal("75000.00"),
+        gst_rate=Decimal("18.00"),
+        gst_amount=Decimal("13500.00"),
+        total_amount=Decimal("88500.00")
+    )
+    mock_client = MockObject(
+        name="Acme Technologies Ltd.",
+        email="billing@acme-tech.com",
+        phone="+91 98765 43210",
+        gst_number="29AAAAA1111A1Z1",
+        address="Building 4, Sector 7, Outer Ring Road, Bangalore, KA, 560103"
+    )
+    mock_user = MockObject(
+        name="Jane Doe Consulting",
+        email="hello@janedoe.io",
+        phone="+91 99999 88888",
+        gst_number="29BBBBB2222B2Z2",
+        address="Flat 302, Green Meadows Apt, HSR Layout, Bangalore, 560102"
+    )
+    mock_bank = {
+        "bank_name": "State Bank of India",
+        "account_holder_name": "Jane Doe Consulting",
+        "account_number": "30123456789",
+        "ifsc_code": "SBIN0001234"
+    }
+    mock_items = [
+        MockObject(
+            description="Full-Stack Development Consulting (June 2026)",
+            quantity=Decimal("1.00"),
+            rate=Decimal("60000.00")
+        ),
+        MockObject(
+            description="UX Research & Wireframing Session",
+            quantity=Decimal("5.00"),
+            rate=Decimal("3000.00")
+        )
+    ]
+
+    pdf_bytes = generate_invoice_pdf(
+        invoice=mock_invoice,
+        client=mock_client,
+        user=mock_user,
+        items=mock_items,
+        bank_details=mock_bank
+    )
+    
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "inline; filename=demo_invoice.pdf"}
+    )
+
+@router.get("/{invoice_id}/download")
+async def download_invoice_pdf(
+    invoice_id: UUID,
+    current_user_id: UUID = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate and return a compiled PDF binary of a real database invoice.
+    Verifies that the invoice belongs to the authenticated user.
+    """
+    invoice = db.query(models.Invoice).filter(
+        models.Invoice.id == invoice_id,
+        models.Invoice.user_id == current_user_id
+    ).first()
+
+    if not invoice:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invoice not found or does not belong to the authenticated user"
+        )
+
+    # Format values for compilation
+    bank_details = invoice.user.bank_details if invoice.user.bank_details else None
+
+    try:
+        pdf_bytes = generate_invoice_pdf(
+            invoice=invoice,
+            client=invoice.client,
+            user=invoice.user,
+            items=invoice.items,
+            bank_details=bank_details
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate invoice PDF: {str(e)}"
+        )
+
+    clean_filename = f"invoice_{invoice.invoice_number.replace(' ', '_')}.pdf"
+    
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename={clean_filename}"}
+    )
+
+
+@router.post(
+    "/{invoice_id}/send",
+    response_model=schemas.SendInvoiceResponse,
+    summary="Email invoice PDF to client",
+)
+async def send_invoice(
+    invoice_id: UUID,
+    current_user_id: UUID = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """
+    Generate the invoice PDF and dispatch it to the client's email address
+    as an attachment via Resend.
+
+    On success the invoice status is automatically updated to **Sent**.
+
+    Raises **422** if the client has no email address on record.
+    Raises **502** if the Resend API returns an error.
+    """
+    # ------------------------------------------------------------------ #
+    # 1. Load invoice and verify ownership
+    # ------------------------------------------------------------------ #
+    invoice = db.query(models.Invoice).filter(
+        models.Invoice.id == invoice_id,
+        models.Invoice.user_id == current_user_id,
+    ).first()
+
+    if not invoice:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invoice not found or does not belong to the authenticated user",
+        )
+
+    # ------------------------------------------------------------------ #
+    # 2. Guard: client must have an email
+    # ------------------------------------------------------------------ #
+    if not invoice.client.email:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Client '{invoice.client.name}' has no email address. "
+                "Please update the client profile before sending."
+            ),
+        )
+
+    # ------------------------------------------------------------------ #
+    # 3. Collect user bank details
+    # ------------------------------------------------------------------ #
+    bank_details = invoice.user.bank_details if invoice.user.bank_details else None
+
+    # ------------------------------------------------------------------ #
+    # 4. Dispatch async email (PDF generation + Resend call)
+    # ------------------------------------------------------------------ #
+    try:
+        resend_response = await send_invoice_email(
+            invoice=invoice,
+            client=invoice.client,
+            user=invoice.user,
+            items=invoice.items,
+            bank_details=bank_details,
+        )
+    except ValueError as exc:
+        # Raised by send_invoice_email when client email is absent
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Email delivery failed: {str(exc)}",
+        )
+
+    # ------------------------------------------------------------------ #
+    # 5. Auto-update invoice status to "Sent"
+    # ------------------------------------------------------------------ #
+    if invoice.status not in ("Paid", "Sent"):
+        invoice.status = "Sent"
+        db.commit()
+        db.refresh(invoice)
+
+    return schemas.SendInvoiceResponse(
+        message=f"Invoice {invoice.invoice_number} successfully dispatched to {invoice.client.email}.",
+        resend_id=resend_response.get("id"),
+        invoice_id=invoice.id,
+        recipient_email=invoice.client.email,
+    )

@@ -6,6 +6,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/postgres"
     SUPABASE_URL: str = "https://your-supabase-project.supabase.co"
     SUPABASE_KEY: str = "your-supabase-anon-key"
+    RESEND_API_KEY: str = "re_placeholder_replace_me"
+    EMAIL_FROM: str = "Invoicer <onboarding@resend.dev>"
 
     model_config = SettingsConfigDict(
         # Read the .env file from the backend folder

@@ -15,6 +15,8 @@ class User(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True)
     name = Column("full_name", String, nullable=True)
+    business_name = Column(String, nullable=True)
+    address = Column(String, nullable=True)
     gst_number = Column(String, nullable=True)
     bank_details = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
