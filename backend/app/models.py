@@ -55,11 +55,18 @@ class Invoice(Base):
     gst_rate = Column(Numeric(5, 2), nullable=False, default=18.00)
     gst_amount = Column(Numeric(10, 2), nullable=False, default=0.00)
     total_amount = Column(Numeric(10, 2), nullable=False, default=0.00)
+    razorpay_order_id = Column(String, nullable=True)
+    razorpay_payment_id = Column(String, nullable=True)
+    razorpay_signature = Column(String, nullable=True)
+    razorpay_link_id = Column(String, nullable=True)
+    razorpay_link_url = Column(String, nullable=True)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="invoices")
     client = relationship("Client", back_populates="invoices")
     items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan")
+    payments = relationship("Payment", back_populates="invoice", cascade="all, delete-orphan")
 
 class InvoiceItem(Base):
     __tablename__ = "invoice_items"
@@ -74,3 +81,20 @@ class InvoiceItem(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     invoice = relationship("Invoice", back_populates="items")
+
+
+class Payment(Base):
+    __tablename__ = "payments"
+    __table_args__ = {"schema": "public"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    invoice_id = Column(UUID(as_uuid=True), ForeignKey("public.invoices.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("public.profiles.id", ondelete="CASCADE"), nullable=True)
+    razorpay_payment_id = Column(String, nullable=True)
+    razorpay_order_id = Column(String, nullable=True)
+    amount_paid = Column(Numeric(10, 2), nullable=False)
+    payment_method = Column(String, nullable=True)
+    paid_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    invoice = relationship("Invoice", back_populates="payments")

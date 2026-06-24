@@ -99,6 +99,7 @@ async def create_invoice(
 
         db.commit()
         db.refresh(invoice)
+        await ensure_payment_link(invoice, db)
         return invoice
 
     except Exception as e:
@@ -139,10 +140,14 @@ async def update_invoice_status(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Invoice not found or does not belong to the authenticated user"
         )
-        
+    old_status = invoice.status
     invoice.status = status_update.status
     db.commit()
     db.refresh(invoice)
+
+    if old_status == "Draft" and invoice.status == "Sent":
+        await ensure_payment_link(invoice, db)
+
     return invoice
 
 @router.delete("/{invoice_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -168,6 +173,97 @@ async def delete_invoice(
     db.delete(invoice)
     db.commit()
     return
+
+
+# --- Razorpay Payment Link Generation Helpers ---
+
+import asyncio
+from functools import partial
+import logging
+from uuid import uuid4
+from app.config import settings
+
+log = logging.getLogger(__name__)
+
+def is_mock_mode() -> bool:
+    key_id = settings.RAZORPAY_KEY_ID
+    key_secret = settings.RAZORPAY_KEY_SECRET
+    return (
+        not key_id or
+        not key_secret or
+        "placeholder" in key_id.lower() or
+        "placeholder" in key_secret.lower()
+    )
+
+async def ensure_payment_link(invoice: models.Invoice, db: Session):
+    """
+    Ensure a unique Razorpay Payment Link is generated and saved for Sent invoices.
+    If standard placeholders are used, it generates a mock link.
+    """
+    if invoice.status != "Sent" or invoice.razorpay_link_url:
+        return
+
+    amount_in_paise = int(invoice.total_amount * 100)
+
+    # 1. Mock Payment Link Mode
+    if is_mock_mode():
+        invoice.razorpay_link_id = f"plink_mock_{uuid4().hex[:14]}"
+        invoice.razorpay_link_url = f"http://localhost:8000/api/v1/payments/mock-payment-portal/{invoice.id}"
+        log.info(
+            "Mock Mode: Generated payment link %s for invoice %s",
+            invoice.razorpay_link_id,
+            invoice.id
+        )
+        db.commit()
+        return
+
+    # 2. Production API Mode
+    try:
+        import razorpay
+        client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+
+        customer_info = {}
+        if invoice.client.name:
+            customer_info["name"] = invoice.client.name
+        if invoice.client.email:
+            customer_info["email"] = invoice.client.email
+        if invoice.client.phone:
+            customer_info["contact"] = invoice.client.phone
+
+        payload = {
+            "amount": amount_in_paise,
+            "currency": "INR",
+            "accept_partial": False,
+            "reference_id": str(invoice.id),
+            "description": f"Payment for Invoice {invoice.invoice_number}",
+            "notify": {
+                "sms": False,
+                "email": False
+            },
+            "notes": {
+                "invoice_id": str(invoice.id),
+                "invoice_number": invoice.invoice_number
+            }
+        }
+        if customer_info:
+            payload["customer"] = customer_info
+
+        # Run blocking network call inside thread pool
+        loop = asyncio.get_running_loop()
+        create_pl_fn = partial(client.payment_link.create, data=payload)
+        response = await loop.run_in_executor(None, create_pl_fn)
+
+        invoice.razorpay_link_id = response.get("id")
+        invoice.razorpay_link_url = response.get("short_url")
+        db.commit()
+
+        log.info(
+            "Razorpay API: Generated payment link %s for invoice %s",
+            invoice.razorpay_link_id,
+            invoice.id
+        )
+    except Exception as e:
+        log.error("Failed to generate Razorpay Payment Link for invoice %s: %s", invoice.id, str(e))
 
 
 # --- PDF/HTML Templating and Preview Engine ---
@@ -489,9 +585,19 @@ async def send_invoice(
         )
 
     # ------------------------------------------------------------------ #
-    # 3. Collect user bank details
+    # 3. Collect user bank details & Auto-update Status & Generate Link
     # ------------------------------------------------------------------ #
     bank_details = invoice.user.bank_details if invoice.user.bank_details else None
+
+    from datetime import datetime, timezone
+    if invoice.status not in ("Paid", "Sent"):
+        invoice.status = "Sent"
+    invoice.sent_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(invoice)
+
+    # Ensure a payment link is generated BEFORE the email is constructed
+    await ensure_payment_link(invoice, db)
 
     # ------------------------------------------------------------------ #
     # 4. Dispatch async email (PDF generation + Resend call)
@@ -515,14 +621,6 @@ async def send_invoice(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Email delivery failed: {str(exc)}",
         )
-
-    # ------------------------------------------------------------------ #
-    # 5. Auto-update invoice status to "Sent"
-    # ------------------------------------------------------------------ #
-    if invoice.status not in ("Paid", "Sent"):
-        invoice.status = "Sent"
-        db.commit()
-        db.refresh(invoice)
 
     return schemas.SendInvoiceResponse(
         message=f"Invoice {invoice.invoice_number} successfully dispatched to {invoice.client.email}.",

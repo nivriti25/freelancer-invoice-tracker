@@ -110,7 +110,10 @@ class InvoiceResponse(InvoiceBase):
     gst_amount: Decimal
     total_amount: Decimal
     created_at: datetime
+    sent_at: Optional[datetime] = None
     items: List[InvoiceItemResponse]
+    razorpay_link_id: Optional[str] = None
+    razorpay_link_url: Optional[str] = None
 
     model_config = {
         "from_attributes": True
@@ -125,3 +128,24 @@ class SendInvoiceResponse(BaseModel):
     resend_id: Optional[str] = None
     invoice_id: UUID
     recipient_email: str
+
+
+# --- Razorpay payment schemas ---
+
+class RazorpayOrderResponse(BaseModel):
+    order_id: str
+    amount: int
+    currency: str
+    key_id: str
+    invoice_id: UUID
+    invoice_number: str
+
+class RazorpayVerifyRequest(BaseModel):
+    invoice_id: UUID
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
+
+class RazorpayVerifyResponse(BaseModel):
+    status: str
+    message: str

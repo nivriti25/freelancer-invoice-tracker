@@ -140,6 +140,31 @@ def _build_invoice_html(invoice: Any, client: Any, user: Any) -> str:
     except Exception:
         due_str = str(due_date)
 
+    razorpay_link_url = _get(invoice, "razorpay_link_url")
+    payment_link_section = ""
+    if razorpay_link_url:
+        payment_link_section = f"""
+              <!-- Payment Link callout -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 28px; text-align: center;">
+                <tr>
+                  <td>
+                    <p style="margin: 0 0 12px; font-size: 14px; color: #475569; font-weight: 600;">
+                      You can pay this invoice securely online:
+                    </p>
+                    <a href="{razorpay_link_url}" target="_blank"
+                       style="background-color: #4F46E5; color: #FFFFFF; padding: 12px 28px;
+                              font-size: 15px; font-weight: 700; text-decoration: none;
+                              border-radius: 8px; display: inline-block; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);">
+                      Pay Invoice Online
+                    </a>
+                    <p style="margin: 12px 0 0; font-size: 11px; color: #64748B;">
+                      Link: <a href="{razorpay_link_url}" style="color: #4F46E5; text-decoration: underline;">{razorpay_link_url}</a>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+        """.strip()
+
     return f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -221,6 +246,8 @@ def _build_invoice_html(invoice: Any, client: Any, user: Any) -> str:
                   </td>
                 </tr>
               </table>
+
+              {payment_link_section}
 
               <p style="margin:0 0 8px;font-size:14px;color:#475569;line-height:1.6;">
                 If you have any questions about this invoice, please reply to this email

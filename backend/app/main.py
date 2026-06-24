@@ -9,12 +9,45 @@ from sqlalchemy import text
 from app.database import get_db
 from app.routers.clients import router as clients_router
 from app.routers.invoices import router as invoices_router
+from app.routers.payments import router as payments_router
+from app.database import SessionLocal
 
 app = FastAPI(
     title="Freelancer Invoicing API",
     description="API backend for the Freelancer Invoicing App",
     version="1.0.0"
 )
+
+# Configure database schema migrations on startup
+@app.on_event("startup")
+def configure_db_schema():
+    """
+    Run basic schema migrations to support Razorpay payment identifiers.
+    """
+    db = SessionLocal()
+    try:
+        db.execute(text("ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS razorpay_order_id VARCHAR;"))
+        db.execute(text("ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS razorpay_payment_id VARCHAR;"))
+        db.execute(text("ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS razorpay_signature VARCHAR;"))
+        db.execute(text("ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP WITH TIME ZONE;"))
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS public.payments (
+                id UUID PRIMARY KEY,
+                invoice_id UUID NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
+                user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+                razorpay_payment_id VARCHAR,
+                razorpay_order_id VARCHAR,
+                amount_paid NUMERIC(10, 2) NOT NULL,
+                payment_method VARCHAR,
+                paid_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+            );
+        """))
+        db.commit()
+    except Exception as e:
+        print(f"Error running database schema migration: {e}")
+    finally:
+        db.close()
 
 # Configure CORS middleware
 origins = [
@@ -33,6 +66,7 @@ app.add_middleware(
 # Register routers
 app.include_router(clients_router, prefix="/api/v1")
 app.include_router(invoices_router, prefix="/api/v1")
+app.include_router(payments_router, prefix="/api/v1")
 
 @app.get("/health")
 async def health_check(db: Session = Depends(get_db)):

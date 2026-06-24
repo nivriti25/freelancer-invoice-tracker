@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { IndianRupee, FileText, Users, CheckCircle, Clock, Plus, TrendingUp, LogOut, Loader2, PlusCircle, AlertCircle, AlertTriangle, Trash2, Landmark, Mail, MapPin, Search, User, Phone, Eye, Download, Send, ChevronDown, ChevronUp, Edit, Calendar, ArrowRight, Menu, X, Settings } from 'lucide-react';
+import { IndianRupee, FileText, Users, CheckCircle, Clock, Plus, TrendingUp, LogOut, Loader2, PlusCircle, AlertCircle, AlertTriangle, Trash2, Landmark, Mail, MapPin, Search, User, Phone, Eye, Download, Send, ChevronDown, ChevronUp, Edit, Calendar, ArrowRight, Menu, X, Settings, CreditCard } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { supabase } from './supabaseClient';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -17,6 +17,20 @@ const formatRupee = (value) => {
     currency: 'INR',
     minimumFractionDigits: 2
   }).format(num);
+};
+
+const formatSentDate = (isoString) => {
+  if (!isoString) return '';
+  try {
+    const date = new Date(isoString);
+    return date.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+  } catch (e) {
+    return isoString;
+  }
 };
 
 function Dashboard() {
@@ -36,6 +50,8 @@ function Dashboard() {
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('All');
   const [sendingInvoiceId, setSendingInvoiceId] = useState(null);
   const [sendSuccessMsg, setSendSuccessMsg] = useState(null);
+  const [payingInvoiceId, setPayingInvoiceId] = useState(null);
+  const [paySuccessMsg, setPaySuccessMsg] = useState(null);
   const [expandedInvoiceId, setExpandedInvoiceId] = useState(null);
   const [clientToEdit, setClientToEdit] = useState(null);
   const [profileName, setProfileName] = useState('Freelancer');
@@ -118,6 +134,127 @@ function Dashboard() {
       setError(err.message || 'Error sending invoice email.');
     } finally {
       setSendingInvoiceId(null);
+    }
+  };
+
+  const handlePayInvoice = async (invoice) => {
+    setPayingInvoiceId(invoice.id);
+    setPaySuccessMsg(null);
+    setError(null);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/payments/create-order/${invoice.id}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to initiate payment');
+      }
+
+      // Check if we are running in Mock Payment Mode (placeholder keys/mock order)
+      if (
+        data.order_id.startsWith("order_mock_") ||
+        data.key_id === "rzp_test_placeholder" ||
+        !data.key_id
+      ) {
+        const confirmMockPay = window.confirm(
+          `[Mock Payment Mode]\n\nInvoice: ${data.invoice_number}\nAmount: ${formatRupee(invoice.total_amount)}\n\nNo real Razorpay key is configured. Would you like to simulate a successful payment?`
+        );
+        if (confirmMockPay) {
+          try {
+            const verifyRes = await fetch(`${import.meta.env.VITE_API_URL}/payments/verify-payment`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`
+              },
+              body: JSON.stringify({
+                invoice_id: invoice.id,
+                razorpay_order_id: data.order_id,
+                razorpay_payment_id: `pay_mock_${Math.random().toString(36).substring(2, 10)}`,
+                razorpay_signature: "mock_signature_value"
+              })
+            });
+            const verifyData = await verifyRes.json();
+            if (!verifyRes.ok) {
+              throw new Error(verifyData.detail || 'Mock signature verification failed');
+            }
+
+            setPaySuccessMsg(`Mock payment of ${formatRupee(invoice.total_amount)} for Invoice ${invoice.invoice_number} processed successfully! ✓`);
+            await fetchData();
+            setTimeout(() => setPaySuccessMsg(null), 6000);
+          } catch (err) {
+            setError(err.message || 'Error processing mock payment.');
+          } finally {
+            setPayingInvoiceId(null);
+          }
+        } else {
+          setPayingInvoiceId(null);
+        }
+        return;
+      }
+
+      const client = clients.find(c => c.id === invoice.client_id) || {};
+
+      const options = {
+        key: data.key_id,
+        amount: data.amount,
+        currency: data.currency,
+        name: "Ledgr Invoicing",
+        description: `Payment for Invoice ${data.invoice_number}`,
+        order_id: data.order_id,
+        handler: async function (checkoutResponse) {
+          setPayingInvoiceId(invoice.id);
+          try {
+            const verifyRes = await fetch(`${import.meta.env.VITE_API_URL}/payments/verify-payment`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`
+               },
+              body: JSON.stringify({
+                invoice_id: invoice.id,
+                razorpay_order_id: checkoutResponse.razorpay_order_id,
+                razorpay_payment_id: checkoutResponse.razorpay_payment_id,
+                razorpay_signature: checkoutResponse.razorpay_signature
+              })
+            });
+            const verifyData = await verifyRes.json();
+            if (!verifyRes.ok) {
+              throw new Error(verifyData.detail || 'Signature verification failed');
+            }
+
+            setPaySuccessMsg(`Payment of ${formatRupee(invoice.total_amount)} for Invoice ${invoice.invoice_number} verified successfully! ✓`);
+            await fetchData();
+            setTimeout(() => setPaySuccessMsg(null), 6000);
+          } catch (err) {
+            setError(err.message || 'Error verifying payment signature.');
+          } finally {
+            setPayingInvoiceId(null);
+          }
+        },
+        prefill: {
+          name: client.name || '',
+          email: client.email || '',
+          contact: client.phone || ''
+        },
+        theme: {
+          color: "#042C53"
+        },
+        modal: {
+          ondismiss: function () {
+            setPayingInvoiceId(null);
+          }
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch (err) {
+      setError(err.message || 'Error processing payment checkout.');
+      setPayingInvoiceId(null);
     }
   };
 
@@ -1263,10 +1400,10 @@ function Dashboard() {
 
                   {filteredInvoices.map((inv) => {
                     const statusColors = {
-                      Paid: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100/50',
-                      Sent: 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100/50',
-                      Overdue: 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100/50',
-                      Draft: 'border-slate-250 bg-slate-100 text-slate-750 hover:bg-slate-200/50'
+                      Paid: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+                      Sent: 'border-blue-200 bg-blue-50 text-blue-700',
+                      Overdue: 'border-rose-200 bg-rose-50 text-rose-700',
+                      Draft: 'border-slate-250 bg-slate-100 text-slate-750'
                     };
 
                     const isOverdue = inv.status === 'Overdue';
@@ -1287,20 +1424,10 @@ function Dashboard() {
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="font-bold text-sm text-slate-800 tracking-tight font-sans">{inv.invoice_number}</span>
 
-                                {/* Dynamic badge selector dropdown */}
-                                <div className="relative inline-flex items-center">
-                                  <select
-                                    value={inv.status}
-                                    onChange={(e) => handleUpdateInvoiceStatus(inv.id, e.target.value)}
-                                    className={`appearance-none text-[10px] font-bold pl-2.5 pr-6 py-0.5 rounded-full border focus:outline-none transition-colors cursor-pointer select-none ${statusColors[inv.status] || statusColors.Draft}`}
-                                  >
-                                    <option value="Draft">Draft</option>
-                                    <option value="Sent">Sent</option>
-                                    <option value="Paid">Paid</option>
-                                    <option value="Overdue">Overdue</option>
-                                  </select>
-                                  <ChevronDown className="w-3 h-3 absolute right-1.5 pointer-events-none opacity-60 text-current" />
-                                </div>
+                                {/* Read-only status badge */}
+                                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border select-none ${statusColors[inv.status] || statusColors.Draft}`}>
+                                  {inv.status}
+                                </span>
                               </div>
 
                               <div className="flex items-center gap-2">
@@ -1325,6 +1452,12 @@ function Dashboard() {
                                 {isOverdue && <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />}
                               </span>
                             </div>
+                            {inv.sent_at && (
+                              <div className="flex items-center gap-2 text-slate-500 font-medium">
+                                <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wide w-12">Sent</span>
+                                <span>{formatSentDate(inv.sent_at)}</span>
+                              </div>
+                            )}
                           </div>
 
                           {/* Amount total & collapse toggle */}
@@ -1387,6 +1520,23 @@ function Dashboard() {
                               <span>{sendingInvoiceId === inv.id ? 'Sending...' : 'Send'}</span>
                             </button>
 
+                            {/* Pay Now button */}
+                            {inv.status !== 'Paid' && inv.status !== 'Draft' && (
+                              <button
+                                onClick={() => handlePayInvoice(inv)}
+                                disabled={payingInvoiceId === inv.id}
+                                className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-750 disabled:opacity-60 disabled:cursor-not-allowed text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm shadow-emerald-600/10 hover:shadow-md select-none"
+                                title="Pay Invoice via Razorpay"
+                              >
+                                {payingInvoiceId === inv.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <CreditCard className="w-3.5 h-3.5" />
+                                )}
+                                <span>{payingInvoiceId === inv.id ? 'Paying...' : 'Pay'}</span>
+                              </button>
+                            )}
+
                             {/* Delete button (glows soft red on hover) */}
                             <button
                               onClick={() => handleDeleteInvoice(inv.id, inv.invoice_number)}
@@ -1401,6 +1551,53 @@ function Dashboard() {
                         {/* Collapsible Line Items Drawer details table */}
                         {expandedInvoiceId === inv.id && (
                           <div className="border-t border-slate-100 bg-slate-50/40 px-5 py-4 sm:px-6 transition-all duration-300">
+                            {inv.razorpay_link_url && (inv.status === 'Sent' || inv.status === 'Overdue') && (
+                              <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-indigo-100 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+                                <div className="flex items-start gap-3">
+                                  <div className="p-2 bg-indigo-600 text-white rounded-lg shadow-sm">
+                                    <CreditCard className="w-4 h-4" />
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-bold text-slate-800">Razorpay Payment Link</p>
+                                    <p className="text-[10px] text-slate-500 font-semibold mt-0.5">Share this secure payment link with your client to collect payment instantly.</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(inv.razorpay_link_url);
+                                      alert('Payment link copied to clipboard!');
+                                    }}
+                                    className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-[10px] font-bold transition-all shadow-sm cursor-pointer select-none"
+                                  >
+                                    Copy Link
+                                  </button>
+                                  <a
+                                    href={inv.razorpay_link_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-750 text-white rounded-lg text-[10px] font-bold transition-all shadow-sm hover:shadow flex items-center gap-1 select-none"
+                                  >
+                                    <span>Open Link</span>
+                                    <ArrowRight className="w-3 h-3" />
+                                  </a>
+                                </div>
+                              </div>
+                            )}
+                            {inv.status === 'Paid' && (
+                              <div className="mb-4 p-4 bg-emerald-50/50 border border-emerald-100 rounded-xl flex items-center gap-3 shadow-sm">
+                                <div className="p-2 bg-emerald-600 text-white rounded-lg shadow-sm">
+                                  <CheckCircle className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-bold text-slate-800">Invoice Paid</p>
+                                  <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                                    This invoice has been fully paid.
+                                    {inv.razorpay_payment_id && ` Payment ID: ${inv.razorpay_payment_id}`}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
                             <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2.5">
                               Line Items & Taxation Details
                             </div>
@@ -1536,6 +1733,42 @@ function Dashboard() {
             {/* Close button */}
             <button
               onClick={() => setSendSuccessMsg(null)}
+              className="absolute top-3.5 right-3.5 p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Linear auto-dismiss progress bar indicator */}
+            <div 
+              className="absolute bottom-0 left-0 h-0.5 bg-gradient-to-r from-emerald-400 to-teal-500 animate-toast-progress" 
+              style={{ animationDuration: '6000ms' }} 
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Floating success toast notification for verified payments */}
+      {paySuccessMsg && (
+        <div className="fixed bottom-6 right-6 z-50 animate-toast-in max-w-sm w-full">
+          <div className="bg-white/90 backdrop-blur-md border border-emerald-100/85 shadow-2xl shadow-emerald-500/10 rounded-2xl p-4 flex items-start gap-3 relative overflow-hidden">
+            {/* Top decorative line */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-500" />
+            
+            {/* Success icon container */}
+            <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 shadow-sm shrink-0">
+              <CheckCircle className="w-4 h-4" />
+            </div>
+
+            <div className="flex-1 min-w-0 pr-6">
+              <h4 className="text-xs font-bold text-slate-800">Payment Received</h4>
+              <p className="text-[11px] font-semibold text-slate-500 mt-1 leading-normal">
+                {paySuccessMsg}
+              </p>
+            </div>
+
+            {/* Close button */}
+            <button
+              onClick={() => setPaySuccessMsg(null)}
               className="absolute top-3.5 right-3.5 p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />

@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str = "your-supabase-anon-key"
     RESEND_API_KEY: str = "re_placeholder_replace_me"
     EMAIL_FROM: str = "Invoicer <onboarding@resend.dev>"
+    RAZORPAY_KEY_ID: str = ""
+    RAZORPAY_KEY_SECRET: str = ""
+    RAZORPAY_WEBHOOK_SECRET: str = ""
 
     model_config = SettingsConfigDict(
         # Read the .env file from the backend folder
