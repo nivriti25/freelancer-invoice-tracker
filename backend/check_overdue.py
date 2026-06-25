@@ -12,6 +12,11 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv(os.path.join(script_dir, ".env"))
 
+# Clean environment variables of any accidental leading/trailing whitespace or newlines
+for key in ["DATABASE_URL", "SUPABASE_URL", "SUPABASE_KEY", "RESEND_API_KEY", "EMAIL_FROM"]:
+    if key in os.environ:
+        os.environ[key] = os.environ[key].strip()
+
 import asyncio
 from sqlalchemy.orm import joinedload
 from app.database import SessionLocal
