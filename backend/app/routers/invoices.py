@@ -197,10 +197,10 @@ def is_mock_mode() -> bool:
 
 async def ensure_payment_link(invoice: models.Invoice, db: Session):
     """
-    Ensure a unique Razorpay Payment Link is generated and saved for Sent invoices.
+    Ensure a unique Razorpay Payment Link is generated and saved for Sent/Overdue invoices.
     If standard placeholders are used, it generates a mock link.
     """
-    if invoice.status != "Sent" or invoice.razorpay_link_url:
+    if invoice.status not in ("Sent", "Overdue") or invoice.razorpay_link_url:
         return
 
     amount_in_paise = int(invoice.total_amount * 100)
@@ -588,16 +588,21 @@ async def send_invoice(
     # 3. Collect user bank details & Auto-update Status & Generate Link
     # ------------------------------------------------------------------ #
     bank_details = invoice.user.bank_details if invoice.user.bank_details else None
+    original_status = invoice.status
 
     from datetime import datetime, timezone
-    if invoice.status not in ("Paid", "Sent"):
+    if original_status == "Draft":
         invoice.status = "Sent"
-    invoice.sent_at = datetime.now(timezone.utc)
+        invoice.sent_at = datetime.now(timezone.utc)
+    elif original_status == "Overdue":
+        invoice.sent_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(invoice)
 
     # Ensure a payment link is generated BEFORE the email is constructed
     await ensure_payment_link(invoice, db)
+
+    email_mode = original_status
 
     # ------------------------------------------------------------------ #
     # 4. Dispatch async email (PDF generation + Resend call)
@@ -609,6 +614,7 @@ async def send_invoice(
             user=invoice.user,
             items=invoice.items,
             bank_details=bank_details,
+            email_mode=email_mode,
         )
     except ValueError as exc:
         # Raised by send_invoice_email when client email is absent
@@ -622,8 +628,16 @@ async def send_invoice(
             detail=f"Email delivery failed: {str(exc)}",
         )
 
+    # Custom return message depending on original_status
+    if original_status == "Paid":
+        msg = f"Payment acknowledgment email successfully dispatched to {invoice.client.email}."
+    elif original_status == "Overdue":
+        msg = f"Overdue reminder email successfully dispatched to {invoice.client.email}."
+    else:
+        msg = f"Invoice {invoice.invoice_number} successfully dispatched to {invoice.client.email}."
+
     return schemas.SendInvoiceResponse(
-        message=f"Invoice {invoice.invoice_number} successfully dispatched to {invoice.client.email}.",
+        message=msg,
         resend_id=resend_response.get("id"),
         invoice_id=invoice.id,
         recipient_email=invoice.client.email,

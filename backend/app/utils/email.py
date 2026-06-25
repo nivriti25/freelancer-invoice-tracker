@@ -107,7 +107,7 @@ async def send_email(
 # Invoice-specific email
 # --------------------------------------------------------------------------- #
 
-def _build_invoice_html(invoice: Any, client: Any, user: Any) -> str:
+def _build_invoice_html(invoice: Any, client: Any, user: Any, email_mode: str = "Draft") -> str:
     """
     Return the HTML body for the invoice delivery email.
     Falls back gracefully when attributes are missing.
@@ -140,30 +140,62 @@ def _build_invoice_html(invoice: Any, client: Any, user: Any) -> str:
     except Exception:
         due_str = str(due_date)
 
-    razorpay_link_url = _get(invoice, "razorpay_link_url")
-    payment_link_section = ""
-    if razorpay_link_url:
-        payment_link_section = f"""
-              <!-- Payment Link callout -->
-              <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 28px; text-align: center;">
-                <tr>
-                  <td>
-                    <p style="margin: 0 0 12px; font-size: 14px; color: #475569; font-weight: 600;">
-                      You can pay this invoice securely online:
-                    </p>
-                    <a href="{razorpay_link_url}" target="_blank"
-                       style="background-color: #4F46E5; color: #FFFFFF; padding: 12px 28px;
-                              font-size: 15px; font-weight: 700; text-decoration: none;
-                              border-radius: 8px; display: inline-block; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);">
-                      Pay Invoice Online
-                    </a>
-                    <p style="margin: 12px 0 0; font-size: 11px; color: #64748B;">
-                      Link: <a href="{razorpay_link_url}" style="color: #4F46E5; text-decoration: underline;">{razorpay_link_url}</a>
-                    </p>
-                  </td>
-                </tr>
-              </table>
+    # Customize dynamic elements based on email_mode
+    if email_mode == "Paid":
+        header_sub = "Payment Receipt & Acknowledgment"
+        body_paragraph = f"""
+          Thank you for your payment! This email serves as confirmation that your payment for invoice 
+          <strong>{invoice_number}</strong> has been successfully received. The paid invoice PDF document is 
+          attached to this email for your records. No further action is required.
         """.strip()
+        amount_label = "Amount Paid"
+        due_status_text = "Status: <strong style='color:#10B981;'>PAID IN FULL</strong>"
+        payment_link_section = ""
+    elif email_mode == "Overdue":
+        header_sub = "Overdue Payment Notice"
+        body_paragraph = f"""
+          This is a reminder that invoice <strong>{invoice_number}</strong> is now overdue. 
+          We kindly request you to complete the payment at your earliest convenience using the secure online link below. 
+          The invoice PDF document is attached to this email for your records.
+        """.strip()
+        amount_label = "Amount Due"
+        due_status_text = f"Due by: <strong style='color:#EF4444;'>{due_str} (OVERDUE)</strong>"
+    else:  # Draft / Sent
+        header_sub = "Invoice Delivery"
+        body_paragraph = f"""
+          Please find attached your invoice <strong>{invoice_number}</strong>
+          for the services rendered. The PDF document is attached to this email
+          for your records. Please pay using the secure online link below.
+        """.strip()
+        amount_label = "Amount Due"
+        due_status_text = f"Due by: <strong style='color:#0F172A;'>{due_str}</strong>"
+
+    # Payment link for Draft and Overdue
+    if email_mode != "Paid":
+        razorpay_link_url = _get(invoice, "razorpay_link_url")
+        payment_link_section = ""
+        if razorpay_link_url:
+            payment_link_section = f"""
+                  <!-- Payment Link callout -->
+                  <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 28px; text-align: center;">
+                    <tr>
+                      <td>
+                        <p style="margin: 0 0 12px; font-size: 14px; color: #475569; font-weight: 600;">
+                          You can pay this invoice securely online:
+                        </p>
+                        <a href="{razorpay_link_url}" target="_blank"
+                           style="background-color: #4F46E5; color: #FFFFFF; padding: 12px 28px;
+                                  font-size: 15px; font-weight: 700; text-decoration: none;
+                                  border-radius: 8px; display: inline-block; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);">
+                          Pay Invoice Online
+                        </a>
+                        <p style="margin: 12px 0 0; font-size: 11px; color: #64748B;">
+                          Link: <a href="{razorpay_link_url}" style="color: #4F46E5; text-decoration: underline;">{razorpay_link_url}</a>
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+            """.strip()
 
     return f"""
 <!DOCTYPE html>
@@ -190,7 +222,7 @@ def _build_invoice_html(invoice: Any, client: Any, user: Any) -> str:
                 {sender_name}
               </p>
               <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.75);">
-                Invoice Delivery
+                {header_sub}
               </p>
             </td>
           </tr>
@@ -202,9 +234,7 @@ def _build_invoice_html(invoice: Any, client: Any, user: Any) -> str:
                 Hi <strong>{client_name}</strong>,
               </p>
               <p style="margin:0 0 24px;font-size:15px;color:#334155;line-height:1.6;">
-                Please find attached your invoice <strong>{invoice_number}</strong>
-                for the services rendered. The PDF document is attached to this email
-                for your records.
+                {body_paragraph}
               </p>
 
               <!-- Summary card -->
@@ -222,7 +252,7 @@ def _build_invoice_html(invoice: Any, client: Any, user: Any) -> str:
                         <td style="font-size:12px;color:#64748B;font-weight:600;
                                    text-transform:uppercase;letter-spacing:0.5px;
                                    text-align:right;">
-                          Amount Due
+                          {amount_label}
                         </td>
                       </tr>
                       <tr>
@@ -239,7 +269,7 @@ def _build_invoice_html(invoice: Any, client: Any, user: Any) -> str:
                         <td colspan="2"
                             style="border-top:1px solid #E2E8F0;padding-top:12px;
                                    margin-top:12px;font-size:13px;color:#64748B;">
-                          Due by: <strong style="color:#0F172A;">{due_str}</strong>
+                          {due_status_text}
                         </td>
                       </tr>
                     </table>
@@ -286,6 +316,7 @@ async def send_invoice_email(
     items: List[Any],
     bank_details: Optional[Dict] = None,
     from_address: Optional[str] = None,
+    email_mode: str = "Draft",
 ) -> Dict:
     """
     Generate the invoice PDF and email it to the client as an attachment.
@@ -301,6 +332,7 @@ async def send_invoice_email(
         items:          List of InvoiceItem model instances (or compatible dicts).
         bank_details:   Optional bank details dict from user.bank_details.
         from_address:   Override sender address (defaults to settings.EMAIL_FROM).
+        email_mode:     The email mode/layout to send (Draft, Paid, or Overdue).
 
     Returns:
         Resend API response dict with an ``id`` key on success.
@@ -328,9 +360,10 @@ async def send_invoice_email(
     invoice_number = _get(invoice, "invoice_number", "Invoice")
 
     log.info(
-        "Dispatching invoice %s to %s via Resend",
+        "Dispatching invoice %s to %s via Resend (mode: %s)",
         invoice_number,
         client_email,
+        email_mode,
     )
 
     # ------------------------------------------------------------------ #
@@ -369,8 +402,15 @@ async def send_invoice_email(
     # ------------------------------------------------------------------ #
     # Step 3 — Build email body and dispatch
     # ------------------------------------------------------------------ #
-    subject = f"Invoice {invoice_number} from {_get(user, 'business_name') or _get(user, 'name', 'Your Provider')}"
-    html_body = _build_invoice_html(invoice=invoice, client=client, user=user)
+    sender_name = _get(user, 'business_name') or _get(user, 'name', 'Your Provider')
+    if email_mode == "Paid":
+        subject = f"Payment Acknowledgment: Invoice {invoice_number} from {sender_name}"
+    elif email_mode == "Overdue":
+        subject = f"URGENT REMINDER: Invoice {invoice_number} is Overdue from {sender_name}"
+    else:
+        subject = f"Invoice {invoice_number} from {sender_name}"
+
+    html_body = _build_invoice_html(invoice=invoice, client=client, user=user, email_mode=email_mode)
 
     response = await send_email(
         to=[client_email],

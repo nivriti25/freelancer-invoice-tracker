@@ -3,7 +3,7 @@ from sqlalchemy import Column, String, ForeignKey, DateTime, JSON, Numeric, Date
 # pyrefly: ignore [missing-import]
 from sqlalchemy.dialects.postgresql import UUID
 # pyrefly: ignore [missing-import]
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 # pyrefly: ignore [missing-import]
 from sqlalchemy.sql import func
 import uuid
@@ -67,6 +67,14 @@ class Invoice(Base):
     client = relationship("Client", back_populates="invoices")
     items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan")
     payments = relationship("Payment", back_populates="invoice", cascade="all, delete-orphan")
+
+    @validates("status")
+    def validate_status(self, key, value):
+        if hasattr(self, 'status') and self.status != value:
+            # If transitioning to Paid or Overdue status, reset sent_at to None
+            if value in ("Paid", "Overdue"):
+                self.sent_at = None
+        return value
 
 class InvoiceItem(Base):
     __tablename__ = "invoice_items"

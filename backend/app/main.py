@@ -95,3 +95,6 @@ async def root():
     return {
         "message": "Welcome to the Freelancer Invoicing API. Visit /docs for the API documentation."
     }
+
+# Force uvicorn process reload to pick up new .env settings
+

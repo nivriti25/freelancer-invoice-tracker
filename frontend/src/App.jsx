@@ -51,6 +51,7 @@ function Dashboard() {
   const [sendingInvoiceId, setSendingInvoiceId] = useState(null);
   const [sendSuccessMsg, setSendSuccessMsg] = useState(null);
   const [payingInvoiceId, setPayingInvoiceId] = useState(null);
+  const [confirmSendInvoiceId, setConfirmSendInvoiceId] = useState(null);
   const [paySuccessMsg, setPaySuccessMsg] = useState(null);
   const [expandedInvoiceId, setExpandedInvoiceId] = useState(null);
   const [clientToEdit, setClientToEdit] = useState(null);
@@ -113,24 +114,37 @@ function Dashboard() {
   };
 
   const handleSendInvoice = async (invoiceId, invoiceNumber) => {
+    console.log("handleSendInvoice: initiated", { invoiceId, invoiceNumber });
+    setConfirmSendInvoiceId(null);
     setSendingInvoiceId(invoiceId);
     setSendSuccessMsg(null);
     setError(null);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/invoices/${invoiceId}/send`, {
+      const url = `${import.meta.env.VITE_API_URL}/invoices/${invoiceId}/send`;
+      console.log("handleSendInvoice: fetching URL", url);
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`
         }
       });
       const data = await response.json().catch(() => ({}));
+      console.log("handleSendInvoice: response status", response.status, data);
       if (!response.ok) {
         throw new Error(data.detail || 'Failed to send invoice email');
       }
-      setSendSuccessMsg(`Invoice ${invoiceNumber} emailed to ${data.recipient_email} ✓`);
+
+      // Mark as sent in localStorage
+      const inv = invoices.find(i => String(i.id) === String(invoiceId));
+      if (inv && (inv.status === 'Paid' || inv.status === 'Overdue')) {
+        localStorage.setItem(`sent_invoice_status_${String(invoiceId)}`, inv.status);
+      }
+
+      setSendSuccessMsg(data.message || `Invoice ${invoiceNumber} emailed successfully ✓`);
       await fetchData();
       setTimeout(() => setSendSuccessMsg(null), 6000);
     } catch (err) {
+      console.error("handleSendInvoice: error occurred", err);
       setError(err.message || 'Error sending invoice email.');
     } finally {
       setSendingInvoiceId(null);
@@ -333,6 +347,11 @@ function Dashboard() {
     } catch (err) {
       setError(err.message || 'Error updating status.');
     }
+  };
+
+  const hasSentInCurrentStatus = (inv) => {
+    if (inv.status === 'Draft' || inv.status === 'Sent') return false;
+    return localStorage.getItem(`sent_invoice_status_${inv.id}`) === inv.status || !!inv.sent_at;
   };
 
   const fetchData = async () => {
@@ -1506,36 +1525,22 @@ function Dashboard() {
                             </button>
 
                             {/* Email Dispatch PDF */}
-                            <button
-                              onClick={() => handleSendInvoice(inv.id, inv.invoice_number)}
-                              disabled={sendingInvoiceId === inv.id}
-                              className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-750 disabled:opacity-60 disabled:cursor-not-allowed text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm shadow-indigo-600/10 hover:shadow-md select-none"
-                              title="Email invoice PDF to client"
-                            >
-                              {sendingInvoiceId === inv.id ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <Send className="w-3.5 h-3.5" />
-                              )}
-                              <span>{sendingInvoiceId === inv.id ? 'Sending...' : 'Send'}</span>
-                            </button>
-
-                            {/* Pay Now button */}
-                            {inv.status !== 'Paid' && inv.status !== 'Draft' && (
+                            {inv.status !== 'Sent' && !hasSentInCurrentStatus(inv) && (
                               <button
-                                onClick={() => handlePayInvoice(inv)}
-                                disabled={payingInvoiceId === inv.id}
-                                className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-750 disabled:opacity-60 disabled:cursor-not-allowed text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm shadow-emerald-600/10 hover:shadow-md select-none"
-                                title="Pay Invoice via Razorpay"
+                                onClick={() => handleSendInvoice(inv.id, inv.invoice_number)}
+                                disabled={sendingInvoiceId === inv.id}
+                                className="flex items-center gap-1.5 bg-indigo-600 hover:bg-[#378ADD] disabled:opacity-60 disabled:cursor-not-allowed text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm shadow-indigo-600/10 hover:shadow-md select-none"
+                                title="Email invoice PDF to client"
                               >
-                                {payingInvoiceId === inv.id ? (
+                                {sendingInvoiceId === inv.id ? (
                                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                 ) : (
-                                  <CreditCard className="w-3.5 h-3.5" />
+                                  <Send className="w-3.5 h-3.5" />
                                 )}
-                                <span>{payingInvoiceId === inv.id ? 'Paying...' : 'Pay'}</span>
+                                <span>{sendingInvoiceId === inv.id ? 'Sending...' : 'Send'}</span>
                               </button>
                             )}
+
 
                             {/* Delete button (glows soft red on hover) */}
                             <button
@@ -1551,6 +1556,66 @@ function Dashboard() {
                         {/* Collapsible Line Items Drawer details table */}
                         {expandedInvoiceId === inv.id && (
                           <div className="border-t border-slate-100 bg-slate-50/40 px-5 py-4 sm:px-6 transition-all duration-300">
+                            {hasSentInCurrentStatus(inv) && (
+                              <div className="mb-4 p-4 bg-slate-50 border border-slate-200/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+                                <div className="flex items-start gap-3">
+                                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg shadow-sm border border-indigo-100">
+                                    <Mail className="w-4 h-4" />
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-bold text-slate-800">
+                                      {inv.status === 'Paid' ? 'Payment Acknowledgment Sent' : 'Overdue Reminder Sent'}
+                                    </p>
+                                    <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                                      {inv.status === 'Paid' 
+                                        ? 'You have already emailed the payment acknowledgment to the client.' 
+                                        : 'You have already emailed the overdue payment reminder to the client.'}
+                                    </p>
+                                  </div>
+                                </div>
+                                {confirmSendInvoiceId === inv.id ? (
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSendInvoice(inv.id, inv.invoice_number)}
+                                      disabled={sendingInvoiceId === inv.id}
+                                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-xl text-[10px] font-bold transition-all shadow-sm flex items-center gap-1 select-none cursor-pointer"
+                                    >
+                                      {sendingInvoiceId === inv.id ? (
+                                        <>
+                                          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1 inline" />
+                                          <span>Sending...</span>
+                                        </>
+                                      ) : (
+                                        <span>Confirm Send</span>
+                                      )}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setConfirmSendInvoiceId(null)}
+                                      disabled={sendingInvoiceId === inv.id}
+                                      className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 disabled:opacity-60 disabled:cursor-not-allowed text-slate-700 rounded-xl text-[10px] font-bold transition-all shadow-sm flex items-center gap-1 select-none cursor-pointer"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmSendInvoiceId(inv.id)}
+                                    disabled={sendingInvoiceId === inv.id}
+                                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-750 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-xl text-[10px] font-bold transition-all shadow-sm flex items-center gap-1.5 select-none cursor-pointer"
+                                  >
+                                    {sendingInvoiceId === inv.id ? (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                      <Send className="w-3 h-3" />
+                                    )}
+                                    <span>{sendingInvoiceId === inv.id ? 'Sending...' : 'Send Again'}</span>
+                                  </button>
+                                )}
+                              </div>
+                            )}
                             {inv.razorpay_link_url && (inv.status === 'Sent' || inv.status === 'Overdue') && (
                               <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-indigo-100 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
                                 <div className="flex items-start gap-3">
