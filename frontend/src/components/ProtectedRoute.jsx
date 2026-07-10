@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import AuthScreen from './AuthScreen';
+import { Navigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
 export default function ProtectedRoute({ children }) {
@@ -16,8 +16,9 @@ export default function ProtectedRoute({ children }) {
   }
 
   if (!user) {
-    return <AuthScreen />;
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;
 }
+

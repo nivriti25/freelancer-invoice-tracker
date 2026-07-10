@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { IndianRupee, FileText, Users, CheckCircle, Clock, Plus, TrendingUp, LogOut, Loader2, PlusCircle, AlertCircle, AlertTriangle, Trash2, Landmark, Mail, MapPin, Search, User, Phone, Eye, Download, Send, ChevronDown, ChevronUp, Edit, Calendar, ArrowRight, Menu, X, Settings, CreditCard } from 'lucide-react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { supabase } from './supabaseClient';
 import ProtectedRoute from './components/ProtectedRoute';
 import ClientForm from './components/ClientForm';
 import InvoiceForm from './components/InvoiceForm';
 import ProfileSettings from './components/ProfileSettings';
+import LandingPage from './components/LandingPage';
+import AuthScreen from './components/AuthScreen';
 
 const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -34,6 +37,7 @@ const formatSentDate = (isoString) => {
 };
 
 function Dashboard() {
+  const navigate = useNavigate();
   const { user, session, signOut } = useAuth();
   const [clients, setClients] = useState([]);
   const [invoices, setInvoices] = useState([]);
@@ -227,7 +231,7 @@ function Dashboard() {
               headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${session.access_token}`
-               },
+              },
               body: JSON.stringify({
                 invoice_id: invoice.id,
                 razorpay_order_id: checkoutResponse.razorpay_order_id,
@@ -508,7 +512,7 @@ function Dashboard() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-6">
               {/* Branding */}
-              <div 
+              <div
                 className="flex items-center gap-2.5 cursor-pointer select-none group"
                 onClick={() => setCurrentView('dashboard')}
               >
@@ -528,11 +532,10 @@ function Dashboard() {
                     setCurrentView('dashboard');
                     setIsMobileMenuOpen(false);
                   }}
-                  className={`relative py-5 text-sm font-semibold transition-all duration-200 cursor-pointer ${
-                    currentView === 'dashboard'
+                  className={`relative py-5 text-sm font-semibold transition-all duration-200 cursor-pointer ${currentView === 'dashboard'
                       ? 'text-[#042C53]'
                       : 'text-slate-500 hover:text-slate-800'
-                  }`}
+                    }`}
                 >
                   Dashboard
                   {currentView === 'dashboard' && (
@@ -545,11 +548,10 @@ function Dashboard() {
                     setCurrentView('clients');
                     setIsMobileMenuOpen(false);
                   }}
-                  className={`relative py-5 text-sm font-semibold transition-all duration-200 cursor-pointer ${
-                    currentView === 'clients'
+                  className={`relative py-5 text-sm font-semibold transition-all duration-200 cursor-pointer ${currentView === 'clients'
                       ? 'text-[#042C53]'
                       : 'text-slate-500 hover:text-slate-800'
-                  }`}
+                    }`}
                 >
                   Clients
                   {currentView === 'clients' && (
@@ -562,11 +564,10 @@ function Dashboard() {
                     setCurrentView('invoices');
                     setIsMobileMenuOpen(false);
                   }}
-                  className={`relative py-5 text-sm font-semibold transition-all duration-200 cursor-pointer ${
-                    currentView === 'invoices'
+                  className={`relative py-5 text-sm font-semibold transition-all duration-200 cursor-pointer ${currentView === 'invoices'
                       ? 'text-[#042C53]'
                       : 'text-slate-500 hover:text-slate-800'
-                  }`}
+                    }`}
                 >
                   Invoices
                   {currentView === 'invoices' && (
@@ -607,22 +608,22 @@ function Dashboard() {
                           setCurrentView('profile');
                           setIsProfileDropdownOpen(false);
                         }}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer ${
-                          currentView === 'profile'
+                        className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer ${currentView === 'profile'
                             ? 'bg-[#042C53]/5 text-[#042C53]'
                             : 'text-slate-600 hover:bg-slate-50 hover:text-slate-850'
-                        }`}
+                          }`}
                       >
                         <User className="w-4 h-4 text-slate-450" />
                         <span>My Profile Settings</span>
                       </button>
 
                       <button
-                        onClick={() => {
-                          signOut();
+                        onClick={async () => {
+                          await signOut();
                           setIsProfileDropdownOpen(false);
+                          navigate('/', { replace: true });
                         }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 hover:text-rose-750 rounded-xl transition-all duration-200 cursor-pointer mt-0.5"
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 hover:text-rose-705 rounded-xl transition-all duration-205 cursor-pointer mt-0.5"
                       >
                         <LogOut className="w-4 h-4 text-rose-400" />
                         <span>Sign Out</span>
@@ -659,11 +660,10 @@ function Dashboard() {
                   setCurrentView('dashboard');
                   setIsMobileMenuOpen(false);
                 }}
-                className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  currentView === 'dashboard'
+                className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${currentView === 'dashboard'
                     ? 'bg-[#042C53]/5 text-[#042C53]'
                     : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
-                }`}
+                  }`}
               >
                 Dashboard
               </button>
@@ -673,11 +673,10 @@ function Dashboard() {
                   setCurrentView('clients');
                   setIsMobileMenuOpen(false);
                 }}
-                className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  currentView === 'clients'
+                className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${currentView === 'clients'
                     ? 'bg-[#042C53]/5 text-[#042C53]'
                     : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
-                }`}
+                  }`}
               >
                 Clients
               </button>
@@ -687,11 +686,10 @@ function Dashboard() {
                   setCurrentView('invoices');
                   setIsMobileMenuOpen(false);
                 }}
-                className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  currentView === 'invoices'
+                className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${currentView === 'invoices'
                     ? 'bg-[#042C53]/5 text-[#042C53]'
                     : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
-                }`}
+                  }`}
               >
                 Invoices
               </button>
@@ -710,21 +708,21 @@ function Dashboard() {
                     setCurrentView('profile');
                     setIsMobileMenuOpen(false);
                   }}
-                  className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                    currentView === 'profile'
+                  className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${currentView === 'profile'
                       ? 'bg-[#042C53]/5 text-[#042C53]'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
-                  }`}
+                    }`}
                 >
                   <User className="w-4 h-4 text-slate-450" />
                   <span>My Profile Settings</span>
                 </button>
                 <button
-                  onClick={() => {
-                    signOut();
+                  onClick={async () => {
+                    await signOut();
                     setIsMobileMenuOpen(false);
+                    navigate('/', { replace: true });
                   }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-rose-650 hover:bg-rose-50 hover:text-rose-700 rounded-xl transition-all cursor-pointer"
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-rose-655 hover:bg-rose-50 hover:text-rose-700 rounded-xl transition-all cursor-pointer"
                 >
                   <LogOut className="w-4 h-4 text-rose-400" />
                   <span>Sign Out</span>
@@ -1342,8 +1340,8 @@ function Dashboard() {
                         type="button"
                         onClick={() => setInvoiceStatusFilter(status)}
                         className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all duration-200 ${isActive
-                            ? 'bg-white text-[#042C53] shadow-sm font-bold border border-slate-200/10'
-                            : 'text-slate-500 hover:text-slate-850'
+                          ? 'bg-white text-[#042C53] shadow-sm font-bold border border-slate-200/10'
+                          : 'text-slate-500 hover:text-slate-850'
                           }`}
                       >
                         {status}
@@ -1567,8 +1565,8 @@ function Dashboard() {
                                       {inv.status === 'Paid' ? 'Payment Acknowledgment Sent' : 'Overdue Reminder Sent'}
                                     </p>
                                     <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
-                                      {inv.status === 'Paid' 
-                                        ? 'You have already emailed the payment acknowledgment to the client.' 
+                                      {inv.status === 'Paid'
+                                        ? 'You have already emailed the payment acknowledgment to the client.'
                                         : 'You have already emailed the overdue payment reminder to the client.'}
                                     </p>
                                   </div>
@@ -1739,7 +1737,7 @@ function Dashboard() {
             </div>
 
             <div className="flex items-center gap-6">
-              <a 
+              <a
                 href="#feedback"
                 onClick={(e) => {
                   e.preventDefault();
@@ -1782,7 +1780,7 @@ function Dashboard() {
           <div className="bg-white/90 backdrop-blur-md border border-emerald-100/85 shadow-2xl shadow-emerald-500/10 rounded-2xl p-4 flex items-start gap-3 relative overflow-hidden">
             {/* Top decorative line */}
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-500" />
-            
+
             {/* Success icon container */}
             <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 shadow-sm shrink-0">
               <CheckCircle className="w-4 h-4" />
@@ -1804,9 +1802,9 @@ function Dashboard() {
             </button>
 
             {/* Linear auto-dismiss progress bar indicator */}
-            <div 
-              className="absolute bottom-0 left-0 h-0.5 bg-gradient-to-r from-emerald-400 to-teal-500 animate-toast-progress" 
-              style={{ animationDuration: '6000ms' }} 
+            <div
+              className="absolute bottom-0 left-0 h-0.5 bg-gradient-to-r from-emerald-400 to-teal-500 animate-toast-progress"
+              style={{ animationDuration: '6000ms' }}
             />
           </div>
         </div>
@@ -1818,7 +1816,7 @@ function Dashboard() {
           <div className="bg-white/90 backdrop-blur-md border border-emerald-100/85 shadow-2xl shadow-emerald-500/10 rounded-2xl p-4 flex items-start gap-3 relative overflow-hidden">
             {/* Top decorative line */}
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-500" />
-            
+
             {/* Success icon container */}
             <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 shadow-sm shrink-0">
               <CheckCircle className="w-4 h-4" />
@@ -1840,9 +1838,9 @@ function Dashboard() {
             </button>
 
             {/* Linear auto-dismiss progress bar indicator */}
-            <div 
-              className="absolute bottom-0 left-0 h-0.5 bg-gradient-to-r from-emerald-400 to-teal-500 animate-toast-progress" 
-              style={{ animationDuration: '6000ms' }} 
+            <div
+              className="absolute bottom-0 left-0 h-0.5 bg-gradient-to-r from-emerald-400 to-teal-500 animate-toast-progress"
+              style={{ animationDuration: '6000ms' }}
             />
           </div>
         </div>
@@ -1851,12 +1849,40 @@ function Dashboard() {
   );
 }
 
+function AuthScreenWrapper() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col items-center justify-center gap-4">
+        <Loader2 className="w-10 h-10 animate-spin text-[#042C53]" />
+        <p className="text-sm font-semibold text-slate-500">Verifying session...</p>
+      </div>
+    );
+  }
+
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <AuthScreen />;
+}
+
 export default function App() {
   return (
-    <AuthProvider>
-      <ProtectedRoute>
-        <Dashboard />
-      </ProtectedRoute>
-    </AuthProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<AuthScreenWrapper />} />
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
