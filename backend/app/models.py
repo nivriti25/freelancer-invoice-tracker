@@ -1,5 +1,5 @@
 # pyrefly: ignore [missing-import]
-from sqlalchemy import Column, String, ForeignKey, DateTime, JSON, Numeric, Date, FetchedValue
+from sqlalchemy import Column, String, ForeignKey, DateTime, JSON, Numeric, Date, FetchedValue, Boolean
 # pyrefly: ignore [missing-import]
 from sqlalchemy.dialects.postgresql import UUID
 # pyrefly: ignore [missing-import]
@@ -106,3 +106,38 @@ class Payment(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     invoice = relationship("Invoice", back_populates="payments")
+
+class AgentDecision(Base):
+    __tablename__ = "agent_decisions"
+    __table_args__ = {"schema": "public"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    invoice_id = Column(UUID(as_uuid=True), ForeignKey("public.invoices.id", ondelete="CASCADE"), nullable=False)
+    input_summary = Column(String, nullable=False)
+    classification = Column(String, nullable=True)
+    decided_action = Column(String, nullable=False)
+    raw_llm_output = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class GuardrailOverride(Base):
+    __tablename__ = "guardrail_overrides"
+    __table_args__ = {"schema": "public"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    invoice_id = Column(UUID(as_uuid=True), ForeignKey("public.invoices.id", ondelete="CASCADE"), nullable=False)
+    llm_proposed_action = Column(String, nullable=False)
+    override_reason = Column(String, nullable=False)
+    final_action = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Promise(Base):
+    __tablename__ = "promises"
+    __table_args__ = {"schema": "public"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    invoice_id = Column(UUID(as_uuid=True), ForeignKey("public.invoices.id", ondelete="CASCADE"), nullable=False)
+    promised_date = Column(Date, nullable=False)
+    resolved = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

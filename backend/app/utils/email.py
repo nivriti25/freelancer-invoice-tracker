@@ -107,10 +107,15 @@ async def send_email(
 # Invoice-specific email
 # --------------------------------------------------------------------------- #
 
-def _build_invoice_html(invoice: Any, client: Any, user: Any, email_mode: str = "Draft") -> str:
+def _build_invoice_html(invoice: Any, client: Any, user: Any, email_mode: str = "Draft", ai_body_paragraph: str = None) -> str:
     """
     Return the HTML body for the invoice delivery email.
     Falls back gracefully when attributes are missing.
+
+    ai_body_paragraph: optional AI-drafted paragraph (plain text) that
+    replaces the hardcoded body_paragraph for the "Overdue" mode only.
+    Draft and Paid modes are unaffected, since those aren't drafted by the
+    agent, they're direct-user actions with no classification behind them.
     """
 
     def _get(obj, attr, default=""):
@@ -153,11 +158,14 @@ def _build_invoice_html(invoice: Any, client: Any, user: Any, email_mode: str = 
         payment_link_section = ""
     elif email_mode == "Overdue":
         header_sub = "Overdue Payment Notice"
-        body_paragraph = f"""
-          This is a reminder that invoice <strong>{invoice_number}</strong> is now overdue. 
-          We kindly request you to complete the payment at your earliest convenience using the secure online link below. 
-          The invoice PDF document is attached to this email for your records.
-        """.strip()
+        if ai_body_paragraph:
+            body_paragraph = ai_body_paragraph
+        else:
+            body_paragraph = f"""
+              This is a reminder that invoice <strong>{invoice_number}</strong> is now overdue. 
+              We kindly request you to complete the payment at your earliest convenience using the secure online link below. 
+              The invoice PDF document is attached to this email for your records.
+            """.strip()
         amount_label = "Amount Due"
         due_status_text = f"Due by: <strong style='color:#EF4444;'>{due_str} (OVERDUE)</strong>"
     else:  # Draft / Sent
@@ -317,6 +325,7 @@ async def send_invoice_email(
     bank_details: Optional[Dict] = None,
     from_address: Optional[str] = None,
     email_mode: str = "Draft",
+    ai_body_paragraph: Optional[str] = None,
 ) -> Dict:
     """
     Generate the invoice PDF and email it to the client as an attachment.
@@ -333,6 +342,9 @@ async def send_invoice_email(
         bank_details:   Optional bank details dict from user.bank_details.
         from_address:   Override sender address (defaults to settings.EMAIL_FROM).
         email_mode:     The email mode/layout to send (Draft, Paid, or Overdue).
+        ai_body_paragraph:  Optional AI-drafted reminder text, used only when
+                             email_mode is "Overdue". Passed through to
+                             _build_invoice_html unchanged.
 
     Returns:
         Resend API response dict with an ``id`` key on success.
@@ -410,7 +422,13 @@ async def send_invoice_email(
     else:
         subject = f"Invoice {invoice_number} from {sender_name}"
 
-    html_body = _build_invoice_html(invoice=invoice, client=client, user=user, email_mode=email_mode)
+    html_body = _build_invoice_html(
+        invoice=invoice,
+        client=client,
+        user=user,
+        email_mode=email_mode,
+        ai_body_paragraph=ai_body_paragraph,
+    )
 
     response = await send_email(
         to=[client_email],

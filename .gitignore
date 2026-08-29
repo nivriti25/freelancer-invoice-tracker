@@ -1,3 +1,8 @@
 __pycache__/
 *.pyc
 backend/.env
+backend/app/ai_agent/_decider_cache.json
+backend/app/ai_agent/_drafter_cache.json
+backend/app/ai_agent/_reply_parser_cache.json
+backend/app/ai_agent/_classifier_cache.json
+

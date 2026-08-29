@@ -1,5 +1,6 @@
 # pyrefly: ignore [missing-import]
 from fastapi import FastAPI, Depends, Request
+# pyrefly: ignore [missing-import]
 from fastapi.responses import JSONResponse
 # pyrefly: ignore [missing-import]
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +12,7 @@ from app.database import get_db
 from app.routers.clients import router as clients_router
 from app.routers.invoices import router as invoices_router
 from app.routers.payments import router as payments_router
+from app.routers import inbound_email
 from app.database import SessionLocal
 
 app = FastAPI(
@@ -44,6 +46,36 @@ def configure_db_schema():
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
             );
         """))
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS public.agent_decisions (
+                id UUID PRIMARY KEY,
+                invoice_id UUID NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
+                input_summary TEXT NOT NULL,
+                classification VARCHAR,
+                decided_action VARCHAR NOT NULL,
+                raw_llm_output TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+            );
+        """))
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS public.guardrail_overrides (
+                id UUID PRIMARY KEY,
+                invoice_id UUID NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
+                llm_proposed_action VARCHAR NOT NULL,
+                override_reason TEXT NOT NULL,
+                final_action VARCHAR NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+            );
+        """))
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS public.promises (
+                id UUID PRIMARY KEY,
+                invoice_id UUID NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
+                promised_date DATE NOT NULL,
+                resolved BOOLEAN NOT NULL DEFAULT FALSE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+            );
+        """))
         db.commit()
     except Exception as e:
         print(f"Error running database schema migration: {e}")
@@ -68,6 +100,7 @@ app.add_middleware(
 app.include_router(clients_router, prefix="/api/v1")
 app.include_router(invoices_router, prefix="/api/v1")
 app.include_router(payments_router, prefix="/api/v1")
+app.include_router(inbound_email.router)
 
 @app.get("/health")
 async def health_check(db: Session = Depends(get_db)):
@@ -116,5 +149,6 @@ async def global_exception_handler(request: Request, exc: Exception):
     return response
 
 # Force uvicorn process reload to pick up new .env settings v5
+
 
 
