@@ -1,12 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
-import { User, MapPin, Landmark, CreditCard, Hash, Save, Loader2, AlertCircle, CheckCircle, Mail } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle, Mail } from 'lucide-react';
+
+const AGENT_PERMISSIONS = [
+  { label: 'Send reminder emails', on: true },
+  { label: 'Retry failed card payments', on: true },
+  { label: 'Offer a payment plan up to ₹10,000', on: false },
+  { label: 'Escalate tone after 3 reminders', on: false },
+];
+
+function PermissionToggle({ on }) {
+  return (
+    <span className={`w-[38px] h-[22px] rounded-full relative shrink-0 inline-block ${on ? 'bg-good' : 'bg-line-strong'}`}>
+      <span className={`absolute top-[3px] w-4 h-4 rounded-full bg-white block transition-all ${on ? 'right-[3px]' : 'left-[3px]'}`} />
+    </span>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-[13px] font-semibold text-ink-soft">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+const inputClass = "w-full px-3.5 py-2.5 border border-line-strong rounded-md text-ink text-[14.5px] placeholder-muted focus:outline-none focus:border-ink transition-colors bg-white";
 
 export default function ProfileSettings() {
   const { user } = useAuth();
 
-  // Form State
   const [fullName, setFullName] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [address, setAddress] = useState('');
@@ -15,7 +40,6 @@ export default function ProfileSettings() {
   const [accountNumber, setAccountNumber] = useState('');
   const [ifscCode, setIfscCode] = useState('');
 
-  // UI State
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -129,207 +153,95 @@ export default function ProfileSettings() {
   if (loading) {
     return (
       <div className="h-80 flex flex-col items-center justify-center gap-3">
-        <Loader2 className="w-7 h-7 animate-spin text-[#042C53]" />
-        <p className="text-slate-500 text-sm font-semibold">Loading profile settings...</p>
+        <Loader2 className="w-6 h-6 animate-spin text-ink" />
+        <p className="text-muted text-sm font-medium">Loading profile settings...</p>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="max-w-2xl">
+      <h1 className="m-0 text-[34px] font-bold tracking-[-0.025em]">Settings</h1>
+      <p className="mt-2 text-[15.5px] text-muted">Your details, your bank, and what the agent's allowed to do.</p>
 
-      {/* ── Page Header ─────────────────────────────────────────── */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm px-5 py-3.5 flex items-center justify-between gap-4">
-        <div>
-          <h2 className="text-base font-bold text-slate-800">Profile Settings</h2>
-          <p className="text-slate-500 text-[11px] font-semibold mt-0.5">
-            Business details &amp; banking info used across your invoices.
-          </p>
-        </div>
-
-        {/* Email badge */}
-        <span className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl font-medium shrink-0">
-          <Mail className="w-3.5 h-3.5 text-slate-400" />
-          {user?.email}
-        </span>
-      </div>
-
-      {/* ── Notifications ───────────────────────────────────────── */}
       {error && (
-        <div className="flex items-center gap-2.5 bg-rose-50 border border-rose-100 text-rose-600 text-xs font-semibold p-3 rounded-xl shadow-sm">
+        <div className="flex items-center gap-2.5 bg-rose-50 border border-rose-100 text-rose-600 text-[13px] font-medium p-3.5 rounded-md mt-6">
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span>{error}</span>
         </div>
       )}
       {success && (
-        <div className="flex items-center gap-2.5 bg-emerald-50 border border-emerald-100 text-emerald-700 text-xs font-semibold p-3 rounded-xl shadow-sm">
+        <div className="flex items-center gap-2.5 bg-emerald-50 border border-emerald-100 text-emerald-700 text-[13px] font-medium p-3.5 rounded-md mt-6">
           <CheckCircle className="w-4 h-4 shrink-0" />
           <span>Profile saved! Your details will reflect on all invoices.</span>
         </div>
       )}
 
-      {/* ── Two-column form grid ─────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-        {/* Card 1: Business Identity */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm p-4 space-y-3">
-          <h3 className="text-[10px] uppercase font-bold text-slate-400 tracking-widest border-b border-slate-100 pb-2">
-            Business Information
-          </h3>
-
-          {/* Full Name */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-slate-500">Full Name *</label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
-                <User className="w-4 h-4" />
-              </span>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Jane Doe"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:bg-white focus:border-[#378ADD] focus:ring-1 focus:ring-[#378ADD]/25 transition-all"
-              />
-            </div>
-          </div>
-
-          {/* Business Name */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-slate-500">Business Name</label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
-                <User className="w-4 h-4" />
-              </span>
-              <input
-                type="text"
-                placeholder="e.g. Acme Consulting Services"
-                value={businessName}
-                onChange={(e) => setBusinessName(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:bg-white focus:border-[#378ADD] focus:ring-1 focus:ring-[#378ADD]/25 transition-all"
-              />
-            </div>
-          </div>
-
-          {/* GST Number */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-slate-500">GSTIN / Tax Number</label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
-                <Landmark className="w-4 h-4" />
-              </span>
-              <input
-                type="text"
-                placeholder="e.g. 29AAAAA1111A1Z1"
-                value={gstNumber}
-                onChange={(e) => setGstNumber(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:bg-white focus:border-[#378ADD] focus:ring-1 focus:ring-[#378ADD]/25 transition-all"
-              />
-            </div>
-          </div>
-
-          {/* Business Address */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-slate-500">Business Address</label>
-            <div className="relative">
-              <span className="absolute top-2.5 left-3 text-slate-400">
-                <MapPin className="w-4 h-4" />
-              </span>
-              <textarea
-                rows={2}
-                placeholder="Street, City, State, Zip Code"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:bg-white focus:border-[#378ADD] focus:ring-1 focus:ring-[#378ADD]/25 transition-all resize-none"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Card 2: Bank Details */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm p-4 space-y-3">
-          <h3 className="text-[10px] uppercase font-bold text-slate-400 tracking-widest border-b border-slate-100 pb-2">
-            Bank Transfer Details
-          </h3>
-
-          {/* Bank Name */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-slate-500">Bank Name</label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
-                <Landmark className="w-4 h-4" />
-              </span>
-              <input
-                type="text"
-                placeholder="e.g. HDFC Bank, ICICI Bank"
-                value={bankName}
-                onChange={(e) => setBankName(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:bg-white focus:border-[#378ADD] focus:ring-1 focus:ring-[#378ADD]/25 transition-all"
-              />
-            </div>
-          </div>
-
-          {/* Account Number */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-slate-500">Account Number</label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
-                <CreditCard className="w-4 h-4" />
-              </span>
-              <input
-                type="text"
-                placeholder="e.g. 50100234567890"
-                value={accountNumber}
-                onChange={(e) => setAccountNumber(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:bg-white focus:border-[#378ADD] focus:ring-1 focus:ring-[#378ADD]/25 transition-all"
-              />
-            </div>
-          </div>
-
-          {/* IFSC Code */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-slate-500">IFSC Code</label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
-                <Hash className="w-4 h-4" />
-              </span>
-              <input
-                type="text"
-                placeholder="e.g. HDFC0001234"
-                value={ifscCode}
-                onChange={(e) => setIfscCode(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-xs focus:outline-none focus:bg-white focus:border-[#378ADD] focus:ring-1 focus:ring-[#378ADD]/25 transition-all"
-              />
-            </div>
-          </div>
-
-          {/* Note */}
-          <div className="bg-[#378ADD]/5 border border-[#378ADD]/15 rounded-xl p-3 text-[11px] text-slate-500 leading-relaxed">
-            💡 Bank details are embedded into invoice PDFs &amp; HTML previews for wire transfers.
-          </div>
-
-          {/* Save Button — lives inside the bank card to avoid extra scroll */}
-          <button
-            type="submit"
-            disabled={saving}
-            className="w-full flex items-center justify-center gap-2 bg-gradient-to-br from-[#042C53] to-[#378ADD] hover:from-[#042C53] hover:to-[#042C53] text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-md shadow-[#042C53]/20 hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Saving Changes...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" />
-                Save Profile Details
-              </>
-            )}
-          </button>
-        </div>
-
+      <div className="flex items-center justify-between mt-9 mb-4 pb-2 border-b border-line">
+        <h2 className="m-0 text-base font-bold">Profile</h2>
+        <span className="flex items-center gap-1.5 text-xs text-muted font-medium">
+          <Mail className="w-3.5 h-3.5" />
+          {user?.email}
+        </span>
       </div>
+      <div className="flex flex-col gap-4">
+        <Field label="Full name *">
+          <input type="text" required placeholder="e.g. Ananya Rao" value={fullName} onChange={(e) => setFullName(e.target.value)} className={inputClass} />
+        </Field>
+        <Field label="Business name">
+          <input type="text" placeholder="e.g. Studio Ananya" value={businessName} onChange={(e) => setBusinessName(e.target.value)} className={inputClass} />
+        </Field>
+        <Field label="GSTIN / Tax number">
+          <input type="text" placeholder="e.g. 29AAAAA1111A1Z1" value={gstNumber} onChange={(e) => setGstNumber(e.target.value)} className={inputClass} />
+        </Field>
+        <Field label="Business address">
+          <textarea rows={2} placeholder="Street, city, state, zip code" value={address} onChange={(e) => setAddress(e.target.value)} className={`${inputClass} resize-none`} />
+        </Field>
+      </div>
+
+      <h2 className="mt-9 mb-4 pb-2 border-b border-line text-base font-bold">Bank details</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="Bank name">
+          <input type="text" placeholder="e.g. HDFC Bank" value={bankName} onChange={(e) => setBankName(e.target.value)} className={inputClass} />
+        </Field>
+        <Field label="Account holder">
+          <input type="text" value={fullName || ''} disabled className={`${inputClass} bg-line-soft text-muted cursor-not-allowed`} />
+        </Field>
+        <Field label="Account number">
+          <input type="text" placeholder="e.g. 50100234567890" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} className={inputClass} />
+        </Field>
+        <Field label="IFSC">
+          <input type="text" placeholder="e.g. HDFC0001234" value={ifscCode} onChange={(e) => setIfscCode(e.target.value)} className={inputClass} />
+        </Field>
+      </div>
+      <p className="mt-3 text-[12.5px] text-muted leading-relaxed">Bank details are embedded into invoice PDFs &amp; previews for wire transfers.</p>
+
+      <h2 className="mt-9 mb-1 text-base font-bold">Agent permissions</h2>
+      <p className="mb-2 text-[13.5px] text-muted">What the agent is allowed to do without asking you first.</p>
+      <div className="border-t border-line">
+        {AGENT_PERMISSIONS.map((p) => (
+          <div key={p.label} className="flex justify-between items-center gap-4 py-[15px] border-b border-line-soft">
+            <p className="m-0 text-[14.5px] leading-[1.45]">{p.label}</p>
+            <PermissionToggle on={p.on} />
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-[12.5px] text-muted leading-relaxed">Anything switched off comes to you as a decision instead. The agent never changes an invoice amount on its own.</p>
+
+      <button
+        type="submit"
+        disabled={saving}
+        className="mt-7 flex items-center justify-center gap-2 bg-ink hover:bg-ink-soft disabled:opacity-60 text-white px-6 py-3 rounded-md text-[14.5px] font-semibold transition-colors cursor-pointer"
+      >
+        {saving ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Saving changes...
+          </>
+        ) : (
+          'Save changes'
+        )}
+      </button>
     </form>
   );
 }

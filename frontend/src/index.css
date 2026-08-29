@@ -1,5 +1,37 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: 'Public Sans', system-ui, -apple-system, sans-serif;
+  --font-serif: 'Newsreader', Georgia, serif;
+
+  /* Ledgr palette */
+  --color-paper: #fbfbfa;
+  --color-ink: #12161c;
+  --color-ink-soft: #3f4650;
+  --color-muted: #6b7480;
+  --color-muted-2: #8b93a0;
+  --color-line: #e6e6e2;
+  --color-line-strong: #d7d7d2;
+  --color-line-soft: #f0f0ec;
+  --color-accent: #2f5fd0;
+  --color-accent-dark: #1f3f96;
+  --color-accent-soft: #eef1fb;
+  --color-good: #1f7a5c;
+  --color-warn: #c0a24f;
+  --color-warn-soft: #8a7233;
+  --color-bad: #c0442f;
+  --color-bad-soft: #a34a3c;
+}
+
+body {
+  background: #fbfbfa;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: #2f5fd0;
+}
+
 @keyframes slideIn {
   from {
     opacity: 0;
