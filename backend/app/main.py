@@ -12,6 +12,7 @@ from app.database import get_db
 from app.routers.clients import router as clients_router
 from app.routers.invoices import router as invoices_router
 from app.routers.payments import router as payments_router
+from app.routers.agent import router as agent_router
 from app.routers import inbound_email
 from app.database import SessionLocal
 
@@ -100,6 +101,7 @@ app.add_middleware(
 app.include_router(clients_router, prefix="/api/v1")
 app.include_router(invoices_router, prefix="/api/v1")
 app.include_router(payments_router, prefix="/api/v1")
+app.include_router(agent_router, prefix="/api/v1")
 app.include_router(inbound_email.router)
 
 @app.get("/health")
