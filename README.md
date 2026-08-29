@@ -1,179 +1,125 @@
-# 🧾 Freelancer Invoice Tracker
+# Ledgr — AI Revenue Recovery Agent
 
-A modern, full-stack, multi-tenant invoicing and payment tracking application tailored for freelancers. Built with a fast **FastAPI** backend and a responsive **React (Vite) + Tailwind CSS** frontend, the app manages client directories, generates professional PDFs, automates email delivery, handles online payment collection, and automatically flags overdue invoices.
+Ledgr is a freelancer invoice tracker built into an AI agent that chases overdue B2B payments, so you don't have to. It classifies why an invoice is overdue, decides the right next step, and acts within hardcoded guardrails, logging every decision it makes along the way.
 
----
+Built for Indian freelancers. Razorpay-powered, GST-aware.
 
-## 🌟 Key Features
+## The problem
 
-*   **📊 Interactive Dashboard & Analytics**: Visualize monthly earnings, payment trends, pending collection, and invoices status breakdown (Draft, Sent, Paid, Overdue) using interactive charts built with Recharts.
-*   **🔑 Multi-Tenant Authentication**: Secure user login, signup, and session persistence powered by **Supabase Auth**.
-*   **👥 Client Directory**: Manage client profiles, contact information, billing addresses, and tax identifiers (GST number).
-*   **📝 Comprehensive Invoice Builder**: Create detailed multi-item invoices with auto-calculating subtotals, custom tax rates (GST), and totals.
-*   **📄 Professional PDF Generation**: Generate clean, print-ready, professional PDF invoices dynamically using ReportLab in the backend.
-*   **✉️ Email Automation**: Automatic delivery of invoice emails with the generated PDF attached directly to the client via **Resend API**.
-*   **💳 Razorpay Integration**: Collect online payments seamlessly. Supports a smart **Mock Mode** for local development without active credentials, and full production mode.
-*   **⏰ Automated Overdue Reminders**: Includes a cron-ready background worker script that integrates with **GitHub Actions Workflow** to automatically track due dates, mark late invoices as `Overdue`, and dispatch payment reminder emails.
+Revenue loss for freelancers rarely happens in one clean step. A payment fails, a client forgets, a client disputes the amount, or a client just goes silent. Chasing each of these manually, invoice by invoice, is repetitive and easy to fall behind on. Ledgr's agent takes over that chase while keeping a human in the loop for anything that actually needs judgement.
 
----
+## What the agent does
 
-## 🛠️ Tech Stack
+For every overdue invoice, the agent runs a fixed pipeline:
 
-### Frontend
-*   **Core**: React 19, JavaScript (ES6+), Vite
-*   **Styling**: Tailwind CSS v4, Lucide React (Icons)
-*   **Charts**: Recharts
-*   **State & Routing**: React Router Dom v7, React Context API
-*   **Client SDK**: `@supabase/supabase-js`
+1. **Classify** why payment hasn't happened: forgot, disputed, payment failed, or gone silent.
+2. **Decide** the next action from a fixed list: send reminder, retry payment, escalate to human, mark disputed, or do nothing.
+3. **Check guardrails** in plain code, not AI, before anything is sent.
+4. **Act**: send an AI-drafted email, retry a failed payment, or stop and hand off to you.
+5. **Log** the decision, so every action has a visible reason attached to it.
 
-### Backend
-*   **Framework**: FastAPI (Python 3.10+)
-*   **Web Server**: Uvicorn
-*   **Database ORM**: SQLAlchemy
-*   **PDF Generation**: ReportLab
-*   **Email Client**: Resend Python SDK
-*   **Payment Gateway**: Razorpay SDK
+The agent decides what to say and when to nudge. It never decides when to stop contacting someone. Stopping rules, contact caps, and amount thresholds stay as plain, auditable code.
 
-### Database & Hosting
-*   **Database**: PostgreSQL (Hosted on Supabase)
-*   **Auth**: Supabase Auth
+## Features
+* **Escalation ladder**: gentle reminder → firmer follow-up → final notice → human handoff, based on days overdue.
+* **Root-cause-aware intervention**: a failed payment gets a retry link, a dispute gets a human, silence gets a nudge.
+* **Promise-to-pay tracking**: if a client commits to a date, escalation pauses until that date passes.
+* **Guardrails**: contact caps, an amount threshold above which a human must approve, and a do-not-contact flag per client or invoice.
+* **Audit trail**: every classification, decision, and override is logged with a timestamp and reason, visible in the dashboard, not buried in backend logs.
 
-### Automation
-*   **Cron Jobs**: GitHub Actions (`cron.yml` workflow executing once daily)
+## Screenshots
 
----
+### Sign in
+The agent's status is visible from the moment you log in.
 
-## 📂 Project Structure
+*Show Image*
 
-```text
-freelancer-invoice-tracker/
-├── .github/
-│   └── workflows/
-│       └── cron.yml         # Daily runner script for overdue reminders
-├── backend/
-│   ├── app/
-│   │   ├── app/routers/     # API Router endpoints (clients, invoices, payments)
-│   │   ├── app/utils/       # Helper utilities (PDF builder, Email template sender)
-│   │   ├── auth.py          # Supabase JWT decoder and User dependency
-│   │   ├── config.py        # Environment variables parser settings
-│   │   ├── database.py      # SQLAlchemy engine and connection pool session maker
-│   │   ├── main.py          # FastAPI application initialization & DB schema updates
-│   │   ├── models.py        # SQLAlchemy relational database tables mapping
-│   │   └── schemas.py       # Pydantic validation schemas
-│   ├── check_overdue.py     # Script to identify overdue invoices and email clients
-│   ├── requirements.txt     # Python backend dependencies
-│   └── .env.template        # Template for backend secrets and configuration
-└── frontend/
-    ├── src/
-    │   ├── components/      # UI components (Auth, Forms, Landing, Settings)
-    │   ├── context/         # React Authentication Context
-    │   ├── App.jsx          # App Router and main Dashboard views layout
-    │   ├── index.css        # Tailwind styling entries
-    │   └── supabaseClient.js# Supabase Client connection initialization
-    ├── package.json         # Frontend packages and scripts
-    └── .env                 # Frontend local variables setup
+### Today
+Your daily summary: what's outstanding, what's overdue, and what the agent is already handling.
+
+*Show Image*
+
+### Needs you
+The agent stops here on purpose. These are the invoices it won't touch without your sign-off, disputes, amounts over the threshold, and clients gone silent.
+
+*Show Image*
+
+### Invoices
+Every invoice, worst first, with its current status and what the agent last did about it.
+
+*Show Image*
+
+### Clients
+A running record of who pays, how much they've been billed, and their current status.
+
+![Clients](docs/images/clients.png)
+
+### Agent controls
+Toggle what the agent may do on its own. Anything switched off comes back to you as a manual decision instead.
+
+![Agent controls](docs/images/agent_controls.png)
+
+### Decision log
+A full, timestamped history of every action the agent has taken and every guardrail override, with the reason attached.
+
+*Show Image*
+
+### Settings
+Business and bank details used to generate invoice PDFs and payment links.
+
+*Show Image*
+
+## Sample emails
+
+The agent drafts reminder emails itself, adjusting tone as an invoice moves up the escalation ladder.
+
+### Stage 1: Gentle reminder
+![Stage 1: Gentle reminder](docs/images/email_stage_1.png)
+
+### Stage 2: Firmer follow-up
+![Stage 2: Firmer follow-up](docs/images/email_stage_2.png)
+
+### Stage 3: Final notice
+![Stage 3: Final notice](docs/images/email_stage_3.png)
+
+## Tech stack
+* **Backend**: FastAPI (Python)
+* **Database**: PostgreSQL via SQLAlchemy
+* **Payments**: Razorpay
+* **AI**: Anthropic API
+* **Frontend**: React (Vite) + Tailwind CSS
+
+## Project status
+
+| Phase | Outcome | Status |
+| :--- | :--- | :--- |
+| 0. Foundation | Standalone LLM call works | In progress |
+| 1. Data layer | Tables for decisions, guardrails, promises | In progress |
+| 2. Core reasoning | Classifier, decider, drafting prompts | In progress |
+| 3. Guardrails & workflow | Contact caps, escalation ladder, promise tracking | In progress |
+| 4. Integration | Agent pipeline replaces the static cron email | In progress |
+| 5. Measurement | Synthetic batch, metrics, audit trail UI | Not started |
+
+## Setup
+
+```bash
+# Clone the repo
+git clone <your-repo-url>
+cd ledgr
+
+# Backend
+cd backend
+pip install -r requirements.txt
+# add your Anthropic API key and database URL to .env
+uvicorn app.main:app --reload
+
+# Frontend
+cd frontend
+npm install
+npm run dev
 ```
 
----
-
-## 🚀 Getting Started
-
-### 📋 Prerequisites
-Make sure you have the following installed:
-*   [Node.js](https://nodejs.org/) (v18+)
-*   [Python](https://www.python.org/) (v3.10+)
-*   A [Supabase](https://supabase.com/) Account (for Database and Auth)
-*   A [Resend](https://resend.com/) Account (for email automation)
-*   A [Razorpay](https://razorpay.com/) Account (optional for testing real payments)
-
----
-
-### 1. Database & Auth Setup (Supabase)
-
-1.  Create a new project on **Supabase**.
-2.  In the Supabase dashboard, go to **Authentication** settings and enable the **Email/Password** provider.
-3.  Ensure the SQL schema is present. The backend will automatically apply basic database migrations for Razorpay payments on startup (`ALTER TABLE public.invoices` and `CREATE TABLE public.payments`). The primary schema structures (`profiles`, `clients`, `invoices`, `invoice_items`) are managed based on the models defined in [models.py](backend/app/models.py).
-    > [!NOTE]
-    > The application leverages a shared `profiles` table linked to Supabase Auth (`auth.users`).
-
----
-
-### 2. Backend Installation & Run
-
-1.  Navigate to the backend directory:
-    ```bash
-    cd backend
-    ```
-2.  Create and activate a virtual environment:
-    ```bash
-    python -m venv venv
-    source venv/bin/activate  # On Windows: venv\Scripts\activate
-    ```
-3.  Install dependencies:
-    ```bash
-    pip install -r requirements.txt
-    ```
-4.  Configure environment variables:
-    ```bash
-    cp .env.template .env
-    ```
-    Open `.env` and fill in your keys:
-    *   `DATABASE_URL`: Your Supabase connection string (Postgres transaction pooler or session mode).
-    *   `SUPABASE_URL` / `SUPABASE_KEY`: Supabase project URL and anon public key.
-    *   `RESEND_API_KEY`: API key from your Resend dashboard.
-    *   `EMAIL_FROM`: The sender email address authorized in Resend (e.g., `Invoicer <onboarding@resend.dev>`).
-    *   `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET`: Razorpay credentials. If left as `rzp_test_placeholder` or empty, the API automatically runs in **Mock Mode**, allowing you to test billing without hitches.
-5.  Start the FastAPI backend server:
-    ```bash
-    uvicorn app.main:app --reload --reload-include "*.env" --port 8000
-    ```
-    The API documentation will be available at [http://localhost:8000/docs](http://localhost:8000/docs).
-
----
-
-### 3. Frontend Installation & Run
-
-1.  Navigate to the frontend directory:
-    ```bash
-    cd ../frontend
-    ```
-2.  Install packages:
-    ```bash
-    npm install
-    ```
-3.  Verify or create `.env` file containing:
-    ```env
-    VITE_SUPABASE_URL=your_supabase_project_url
-    VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-    VITE_API_URL=http://localhost:8000/api/v1
-    ```
-4.  Run the development server:
-    ```bash
-    npm run dev
-    ```
-    The website will run locally at [http://localhost:5173](http://localhost:5173).
-
----
-
-## 💳 Payment Processing modes
-
-*   **Mock Mode (Development)**:
-    If `RAZORPAY_KEY_ID` contains `"placeholder"` or is omitted from the backend env:
-    - Backend generates safe mock transaction IDs.
-    - Payments can be approved directly in the dashboard UI with dummy credentials.
-    - No external API calls are made to Razorpay.
-*   **Production/Test Mode**:
-    - Enter valid credentials from your Razorpay console.
-    - Generates active payment orders and triggers the standard Razorpay checkout modal.
-
----
-
-## ⏰ Overdue Reminders Cron (GitHub Actions)
-
-A daily scheduler is configured under `.github/workflows/cron.yml`. 
-*   It triggers every day at `00:00 UTC`.
-*   It queries all invoices marked as `Sent` whose `due_date` has passed.
-*   It sends out automated HTML reminder emails to the corresponding clients, attaching the invoice PDF.
-*   It updates the invoice status to `Overdue` in the database.
-
-To customize variables for production execution, store your secrets (`DATABASE_URL`, `RESEND_API_KEY`, etc.) as **Repository Secrets** in your GitHub repository configuration settings.
+## What's next
+* Wire reply capture so client replies feed the promise-to-pay tracker automatically.
+* Run the synthetic batch (50+ invoices) and publish recovery rate, amount recovered, and average days-to-recovery.
+* Surface those metrics directly on the dashboard.
