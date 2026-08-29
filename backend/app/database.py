@@ -10,7 +10,8 @@ engine = create_engine(
     pool_size=5,
     max_overflow=10,
     pool_timeout=30,
-    pool_recycle=1800  # Recycle connections after 30 minutes
+    pool_recycle=1800,  # Recycle connections after 30 minutes
+    pool_pre_ping=True   # Automatically reconnect if connection is stale or dropped
 )
 
 # Create session maker

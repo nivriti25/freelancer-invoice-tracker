@@ -1,5 +1,6 @@
 # pyrefly: ignore [missing-import]
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
+from fastapi.responses import JSONResponse
 # pyrefly: ignore [missing-import]
 from fastapi.middleware.cors import CORSMiddleware
 # pyrefly: ignore [missing-import]
@@ -96,5 +97,24 @@ async def root():
         "message": "Welcome to the Freelancer Invoicing API. Visit /docs for the API documentation."
     }
 
-# Force uvicorn process reload to pick up new .env settings
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """
+    Ensure all unhandled exceptions return JSON with CORS headers.
+    """
+    import logging
+    logging.exception("Unhandled error occurred in request: %s", request.url)
+    response = JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error"}
+    )
+    # Manually add CORS headers if Origin is present
+    origin = request.headers.get("origin")
+    if origin in ["http://localhost:5173", "http://127.0.0.1:5173"]:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
+
+# Force uvicorn process reload to pick up new .env settings v5
+
 

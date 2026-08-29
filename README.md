@@ -125,7 +125,7 @@ Make sure you have the following installed:
     *   `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET`: Razorpay credentials. If left as `rzp_test_placeholder` or empty, the API automatically runs in **Mock Mode**, allowing you to test billing without hitches.
 5.  Start the FastAPI backend server:
     ```bash
-    uvicorn app.main:app --reload --port 8000
+    uvicorn app.main:app --reload --reload-include "*.env" --port 8000
     ```
     The API documentation will be available at [http://localhost:8000/docs](http://localhost:8000/docs).
 
