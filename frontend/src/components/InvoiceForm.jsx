@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+/* eslint-disable react-hooks/set-state-in-effect */
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { X, Plus, Trash2, Calculator, Loader2, AlertCircle } from 'lucide-react';
 
@@ -17,13 +18,10 @@ export default function InvoiceForm({ isOpen, onClose, onSuccess, clients }) {
   const { session } = useAuth();
 
   // Set default dates
-  const todayStr = new Date().toISOString().substring(0, 10);
-  const defaultDueStr = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10);
-
   const [clientId, setClientId] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
-  const [issueDate, setIssueDate] = useState(todayStr);
-  const [dueDate, setDueDate] = useState(defaultDueStr);
+  const [issueDate, setIssueDate] = useState(() => new Date().toISOString().substring(0, 10));
+  const [dueDate, setDueDate] = useState(() => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10));
   const [status, setStatus] = useState('Draft');
 
   // Dynamic items list state

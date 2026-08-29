@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import {
   Loader2, AlertCircle, AlertTriangle, CheckCircle, Trash2, Landmark, Mail, MapPin, Phone,
   Search, Eye, Download, Send, ChevronDown, ChevronUp, Edit, ArrowRight, Menu, X,
   CreditCard, MessageSquare, ShieldAlert, LogOut
 } from 'lucide-react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { supabase } from './supabaseClient';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -21,7 +21,7 @@ const NAV_ITEMS = [
   { key: 'today', label: 'Today' },
   { key: 'invoices', label: 'Invoices' },
   { key: 'clients', label: 'Clients' },
-  { key: 'agent', label: 'Agent log' },
+  { key: 'agent', label: 'Agent' },
   { key: 'settings', label: 'Settings' },
 ];
 
@@ -41,25 +41,11 @@ const formatRupee = (value) => {
   }).format(num);
 };
 
-const formatSentDate = (isoString) => {
-  if (!isoString) return '';
-  try {
-    const date = new Date(isoString);
-    return date.toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    });
-  } catch (e) {
-    return isoString;
-  }
-};
-
 const formatShortDate = (value) => {
   if (!value) return '';
   try {
     return new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-  } catch (e) {
+  } catch {
     return value;
   }
 };
@@ -74,7 +60,7 @@ const formatDateTime = (isoString) => {
       hour: '2-digit',
       minute: '2-digit'
     });
-  } catch (e) {
+  } catch {
     return isoString;
   }
 };
@@ -164,9 +150,52 @@ function buildAgentTimeline(activity) {
     resolved: p.resolved,
   }));
 
-  return [...decisionEvents, ...promiseEvents].sort(
+  const sortedEvents = [...decisionEvents, ...promiseEvents].sort(
     (a, b) => new Date(a.created_at) - new Date(b.created_at)
   );
+
+  const deduplicated = [];
+  sortedEvents.forEach((ev) => {
+    if (deduplicated.length === 0) {
+      deduplicated.push(ev);
+      return;
+    }
+    const prev = deduplicated[deduplicated.length - 1];
+
+    if (ev.type === 'decision' && prev.type === 'decision') {
+      const sameAction = ev.decided_action === prev.decided_action;
+      const sameClassification = ev.classification === prev.classification;
+      const evOverrideReason = ev.override ? ev.override.override_reason : '';
+      const prevOverrideReason = prev.override ? prev.override.override_reason : '';
+      const sameOverride = evOverrideReason === prevOverrideReason;
+
+      if (sameAction && sameClassification && sameOverride) {
+        // Passive actions (escalate_to_human, mark_disputed, do_nothing) are deduplicated unconditionally.
+        const isPassive = ['escalate_to_human', 'mark_disputed', 'do_nothing'].includes(ev.decided_action);
+        if (isPassive) {
+          return;
+        }
+
+        // Active actions (send_reminder, retry_payment) are deduplicated if within 1 hour.
+        const timeDiffMs = Math.abs(new Date(ev.created_at) - new Date(prev.created_at));
+        if (timeDiffMs < 60 * 60 * 1000) {
+          return;
+        }
+      }
+    }
+
+    if (ev.type === 'promise' && prev.type === 'promise') {
+      const sameDate = ev.promised_date === prev.promised_date;
+      const sameResolved = ev.resolved === prev.resolved;
+      if (sameDate && sameResolved) {
+        return;
+      }
+    }
+
+    deduplicated.push(ev);
+  });
+
+  return deduplicated;
 }
 
 function AgentTimeline({ activity }) {
@@ -246,16 +275,22 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [currentView, setCurrentView] = useState('today'); // 'today', 'invoices', 'clients', 'agent', 'settings'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentView = searchParams.get('view') || 'today';
+  const previousViewRef = useRef(currentView);
+  const setCurrentView = (view, options = {}) => {
+    if (view === currentView) return;
+    setSearchParams({ view }, options);
+  };
   const [clientSearchQuery, setClientSearchQuery] = useState('');
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('All');
   const [sendingInvoiceId, setSendingInvoiceId] = useState(null);
   const [sendSuccessMsg, setSendSuccessMsg] = useState(null);
-  const [payingInvoiceId, setPayingInvoiceId] = useState(null);
   const [confirmSendInvoiceId, setConfirmSendInvoiceId] = useState(null);
   const [paySuccessMsg, setPaySuccessMsg] = useState(null);
   const [expandedInvoiceId, setExpandedInvoiceId] = useState(null);
+  const [highlightedInvoiceId, setHighlightedInvoiceId] = useState(null);
   const [clientToEdit, setClientToEdit] = useState(null);
   const [profileName, setProfileName] = useState('Freelancer');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -348,126 +383,7 @@ function Dashboard() {
     }
   };
 
-  const handlePayInvoice = async (invoice) => {
-    setPayingInvoiceId(invoice.id);
-    setPaySuccessMsg(null);
-    setError(null);
-    try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/payments/create-order/${invoice.id}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.detail || 'Failed to initiate payment');
-      }
 
-      // Check if we are running in Mock Payment Mode (placeholder keys/mock order)
-      if (
-        data.order_id.startsWith("order_mock_") ||
-        data.key_id === "rzp_test_placeholder" ||
-        !data.key_id
-      ) {
-        const confirmMockPay = window.confirm(
-          `[Mock Payment Mode]\n\nInvoice: ${data.invoice_number}\nAmount: ${formatRupee(invoice.total_amount)}\n\nNo real Razorpay key is configured. Would you like to simulate a successful payment?`
-        );
-        if (confirmMockPay) {
-          try {
-            const verifyRes = await fetch(`${import.meta.env.VITE_API_URL}/payments/verify-payment`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session.access_token}`
-              },
-              body: JSON.stringify({
-                invoice_id: invoice.id,
-                razorpay_order_id: data.order_id,
-                razorpay_payment_id: `pay_mock_${Math.random().toString(36).substring(2, 10)}`,
-                razorpay_signature: "mock_signature_value"
-              })
-            });
-            const verifyData = await verifyRes.json();
-            if (!verifyRes.ok) {
-              throw new Error(verifyData.detail || 'Mock signature verification failed');
-            }
-
-            setPaySuccessMsg(`Mock payment of ${formatRupee(invoice.total_amount)} for Invoice ${invoice.invoice_number} processed successfully! ✓`);
-            await fetchData();
-            setTimeout(() => setPaySuccessMsg(null), 6000);
-          } catch (err) {
-            setError(err.message || 'Error processing mock payment.');
-          } finally {
-            setPayingInvoiceId(null);
-          }
-        } else {
-          setPayingInvoiceId(null);
-        }
-        return;
-      }
-
-      const client = clients.find(c => c.id === invoice.client_id) || {};
-
-      const options = {
-        key: data.key_id,
-        amount: data.amount,
-        currency: data.currency,
-        name: "Ledgr Invoicing",
-        description: `Payment for Invoice ${data.invoice_number}`,
-        order_id: data.order_id,
-        handler: async function (checkoutResponse) {
-          setPayingInvoiceId(invoice.id);
-          try {
-            const verifyRes = await fetch(`${import.meta.env.VITE_API_URL}/payments/verify-payment`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session.access_token}`
-              },
-              body: JSON.stringify({
-                invoice_id: invoice.id,
-                razorpay_order_id: checkoutResponse.razorpay_order_id,
-                razorpay_payment_id: checkoutResponse.razorpay_payment_id,
-                razorpay_signature: checkoutResponse.razorpay_signature
-              })
-            });
-            const verifyData = await verifyRes.json();
-            if (!verifyRes.ok) {
-              throw new Error(verifyData.detail || 'Signature verification failed');
-            }
-
-            setPaySuccessMsg(`Payment of ${formatRupee(invoice.total_amount)} for Invoice ${invoice.invoice_number} verified successfully! ✓`);
-            await fetchData();
-            setTimeout(() => setPaySuccessMsg(null), 6000);
-          } catch (err) {
-            setError(err.message || 'Error verifying payment signature.');
-          } finally {
-            setPayingInvoiceId(null);
-          }
-        },
-        prefill: {
-          name: client.name || '',
-          email: client.email || '',
-          contact: client.phone || ''
-        },
-        theme: {
-          color: "#12161c"
-        },
-        modal: {
-          ondismiss: function () {
-            setPayingInvoiceId(null);
-          }
-        }
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.open();
-    } catch (err) {
-      setError(err.message || 'Error processing payment checkout.');
-      setPayingInvoiceId(null);
-    }
-  };
 
   const handleDownloadPDF = async (invoiceId, invoiceNumber) => {
     setError(null);
@@ -522,29 +438,7 @@ function Dashboard() {
     }
   };
 
-  const handleUpdateInvoiceStatus = async (invoiceId, newStatus) => {
-    setError(null);
-    try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/invoices/${invoiceId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({ status: newStatus })
-      });
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        const errMsg = errData.detail || 'Failed to update status';
-        throw new Error(errMsg);
-      }
-
-      await fetchData();
-    } catch (err) {
-      setError(err.message || 'Error updating status.');
-    }
-  };
 
   const hasSentInCurrentStatus = (inv) => {
     if (inv.status === 'Draft' || inv.status === 'Sent') return false;
@@ -620,13 +514,14 @@ function Dashboard() {
 
   useEffect(() => {
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
   useEffect(() => {
     async function loadProfileName() {
       if (!session?.user?.id) return;
       try {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('profiles')
           .select('full_name, business_name')
           .eq('id', session.user.id)
@@ -648,7 +543,31 @@ function Dashboard() {
   useEffect(() => {
     if (currentView !== 'agent' || !agentSummary) return;
     Object.keys(agentSummary.latest_actions || {}).forEach((id) => fetchAgentActivity(id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentView, agentSummary]);
+
+  useEffect(() => {
+    if (highlightedInvoiceId && currentView === 'invoices') {
+      const timer = setTimeout(() => {
+        const element = document.getElementById(`invoice-row-${highlightedInvoiceId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightedInvoiceId, currentView]);
+
+  // Clear highlighted invoice when navigating away from the invoices view
+  useEffect(() => {
+    if (previousViewRef.current === 'invoices' && currentView !== 'invoices' && highlightedInvoiceId !== null) {
+      const timer = setTimeout(() => {
+        setHighlightedInvoiceId(null);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+    previousViewRef.current = currentView;
+  }, [currentView, highlightedInvoiceId]);
 
   // Aggregate Calculations
   const getStats = () => {
@@ -716,7 +635,7 @@ function Dashboard() {
         const mName = months[dateObj.getMonth()];
         const amt = parseFloat(inv.total_amount) || 0;
         monthlyTotals[mName] = (monthlyTotals[mName] || 0) + amt;
-      } catch (e) {
+      } catch {
         // ignore
       }
     });
@@ -758,6 +677,7 @@ function Dashboard() {
     setInvoiceSearchQuery('');
     setInvoiceStatusFilter('All');
     setExpandedInvoiceId(invoiceId);
+    setHighlightedInvoiceId(invoiceId);
     if (agentSummary?.latest_actions?.[invoiceId]) fetchAgentActivity(invoiceId);
   };
 
@@ -922,6 +842,36 @@ function Dashboard() {
                 </div>
               </div>
 
+              {/* Monthly revenue (compact) */}
+              {chartData.some(d => d.revenue > 0) && (
+                <div className="mt-10 mb-6">
+                  <h2 className="mb-1 text-[19px] font-bold tracking-[-0.015em]">Monthly revenue</h2>
+                  <p className="mb-4.5 text-[14.5px] text-muted">Billed totals across active periods.</p>
+                  <div className="h-[200px] border border-line rounded-md p-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0ec" vertical={false} />
+                        <XAxis dataKey="month" stroke="#8b93a0" fontSize={11} tickLine={false} axisLine={false} />
+                        <YAxis
+                          stroke="#8b93a0"
+                          fontSize={11}
+                          tickLine={false}
+                          axisLine={false}
+                          width={64}
+                          tickFormatter={(value) => new Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 1 }).format(value)}
+                        />
+                        <Tooltip
+                          cursor={{ fill: '#f0f0ec' }}
+                          contentStyle={{ backgroundColor: '#fff', borderColor: '#e6e6e2', borderRadius: '6px', fontSize: '12px' }}
+                          formatter={(value) => formatRupee(value)}
+                        />
+                        <Bar dataKey="revenue" fill="#12161c" radius={[3, 3, 0, 0]} barSize={22} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
               {/* Needs you */}
               <h2 className="mt-11 mb-1 text-[19px] font-bold tracking-[-0.015em]">Needs you</h2>
               <p className="mb-4.5 text-[14.5px] text-muted">The agent stopped here on purpose. These need a person.</p>
@@ -956,69 +906,6 @@ function Dashboard() {
                       </div>
                     </div>
                   ))}
-                </div>
-              )}
-
-              {/* The agent is handling */}
-              <h2 className="mt-11 mb-1 text-[19px] font-bold tracking-[-0.015em]">The agent is handling</h2>
-              <p className="mb-4.5 text-[14.5px] text-muted">No action needed. Anything here can be taken back at any point.</p>
-              {handlingInvoices.length === 0 ? (
-                <div className="border border-line rounded-md py-10 px-6 text-center text-[14px] text-muted">
-                  The agent isn't actively chasing anything right now.
-                </div>
-              ) : (
-                <div className="border border-line rounded-md overflow-hidden">
-                  {handlingInvoices.map((inv, idx) => {
-                    const promiseDate = agentSummary?.active_promises?.[inv.id];
-                    const action = agentSummary?.latest_actions?.[inv.id];
-                    const meta = AI_ACTION_META[action] || AI_ACTION_META.do_nothing;
-                    return (
-                      <div
-                        key={inv.id}
-                        className={`grid grid-cols-1 sm:grid-cols-[1fr_150px_130px] gap-1.5 sm:gap-5 px-5 sm:px-6 py-4 sm:items-center cursor-pointer hover:bg-line-soft/40 transition-colors ${idx < handlingInvoices.length - 1 ? 'border-b border-line-soft' : ''}`}
-                        onClick={() => openInvoiceDetails(inv.id)}
-                      >
-                        <div className="min-w-0">
-                          <p className="m-0 text-[15.5px] font-semibold">{getClientName(inv.client_id)}<span className="text-muted font-normal"> · {inv.invoice_number}</span></p>
-                          <p className="mt-1 text-[14px] text-ink-soft">
-                            {promiseDate ? `Promised to pay by ${formatShortDate(promiseDate)}` : meta.label}
-                          </p>
-                        </div>
-                        <p className={`m-0 text-[13.5px] font-semibold ${statusTextColor(inv.status)}`}>{inv.status}</p>
-                        <p className="m-0 text-[16.5px] font-semibold sm:text-right tabular-nums">{formatRupee(inv.total_amount)}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Monthly revenue (compact) */}
-              {chartData.some(d => d.revenue > 0) && (
-                <div className="mt-14">
-                  <h2 className="mb-1 text-[19px] font-bold tracking-[-0.015em]">Monthly revenue</h2>
-                  <p className="mb-4.5 text-[14.5px] text-muted">Billed totals across active periods.</p>
-                  <div className="h-[200px] border border-line rounded-md p-4">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0ec" vertical={false} />
-                        <XAxis dataKey="month" stroke="#8b93a0" fontSize={11} tickLine={false} axisLine={false} />
-                        <YAxis
-                          stroke="#8b93a0"
-                          fontSize={11}
-                          tickLine={false}
-                          axisLine={false}
-                          width={64}
-                          tickFormatter={(value) => new Intl.NumberFormat('en-IN', { notation: 'compact', maximumFractionDigits: 1 }).format(value)}
-                        />
-                        <Tooltip
-                          cursor={{ fill: '#f0f0ec' }}
-                          contentStyle={{ backgroundColor: '#fff', borderColor: '#e6e6e2', borderRadius: '6px', fontSize: '12px' }}
-                          formatter={(value) => formatRupee(value)}
-                        />
-                        <Bar dataKey="revenue" fill="#12161c" radius={[3, 3, 0, 0]} barSize={22} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
                 </div>
               )}
             </div>
@@ -1120,7 +1007,15 @@ function Dashboard() {
                       const isExpanded = expandedInvoiceId === inv.id;
 
                       return (
-                        <div key={inv.id} className="border-b border-line-soft py-5">
+                        <div
+                          key={inv.id}
+                          id={`invoice-row-${inv.id}`}
+                          className={`border-b border-line-soft py-5 px-4 -mx-4 transition-all duration-1000 ${
+                            highlightedInvoiceId === inv.id
+                              ? 'bg-amber-50/60 border-l-[4px] border-l-amber-500'
+                              : 'border-l-[4px] border-l-transparent'
+                          }`}
+                        >
                           <div className="flex flex-col lg:flex-row lg:items-center gap-4">
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-2">
@@ -1520,12 +1415,12 @@ function Dashboard() {
               return (
                 <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-10 lg:gap-14 items-start">
                   <div>
-                    <h1 className="m-0 font-serif text-[32px] sm:text-[36px] font-normal tracking-[-0.01em] leading-[1.2]">What I did about your money</h1>
-                    <p className="mt-3 text-[15.5px] text-muted max-w-[58ch] leading-relaxed">
+                    <h1 className="m-0 text-[34px] font-bold tracking-[-0.025em]">Agent</h1>
+                    <p className="mt-2 text-[15.5px] text-muted max-w-[58ch] leading-relaxed">
                       {formatRupee(parseFloat(stats.totalOutstanding) + parseFloat(stats.overdueAmount))} outstanding, {formatRupee(stats.overdueAmount)} of it late.{' '}
                       {needsAttentionItems.length > 0
-                        ? `${needsAttentionItems.length} thing${needsAttentionItems.length === 1 ? '' : 's'} waiting on you above in Today; everything else is on record.`
-                        : 'Everything is on record.'}
+                        ? `${needsAttentionItems.length} thing${needsAttentionItems.length === 1 ? '' : 's'} waiting on you in Today; everything else is on track.`
+                        : 'Everything is on track.'}
                     </p>
 
                     <div className="flex flex-wrap gap-8 mt-7 pb-7 border-b border-line">
@@ -1547,7 +1442,44 @@ function Dashboard() {
                       </div>
                     </div>
 
-                    <div className="border-l border-line pl-6 mt-8 flex flex-col gap-6">
+                    {/* The agent is handling */}
+                    <h2 className="mt-10 mb-1 text-[19px] font-bold tracking-[-0.015em]">The agent is handling</h2>
+                    <p className="mb-4 text-[14px] text-muted">No action needed. Anything here can be taken back at any point.</p>
+                    {handlingInvoices.length === 0 ? (
+                      <div className="border border-line rounded-md py-8 px-5 text-center text-[13.5px] text-muted mb-10">
+                        The agent isn't actively chasing anything right now.
+                      </div>
+                    ) : (
+                      <div className="border border-line rounded-md overflow-hidden mb-10 bg-white">
+                        {handlingInvoices.map((inv, idx) => {
+                          const promiseDate = agentSummary?.active_promises?.[inv.id];
+                          const action = agentSummary?.latest_actions?.[inv.id];
+                          const meta = AI_ACTION_META[action] || AI_ACTION_META.do_nothing;
+                          return (
+                            <div
+                              key={inv.id}
+                              className={`grid grid-cols-1 sm:grid-cols-[1fr_150px_130px] gap-1.5 sm:gap-5 px-5 py-3.5 sm:items-center cursor-pointer hover:bg-line-soft/40 transition-colors ${idx < handlingInvoices.length - 1 ? 'border-b border-line-soft' : ''}`}
+                              onClick={() => openInvoiceDetails(inv.id)}
+                            >
+                              <div className="min-w-0">
+                                <p className="m-0 text-[14.5px] font-semibold">{getClientName(inv.client_id)}<span className="text-muted font-normal"> · {inv.invoice_number}</span></p>
+                                <p className="mt-0.5 text-[13px] text-ink-soft">
+                                  {promiseDate ? `Promised to pay by ${formatShortDate(promiseDate)}` : meta.label}
+                                </p>
+                              </div>
+                              <p className={`m-0 text-[13px] font-semibold ${statusTextColor(inv.status)}`}>{inv.status}</p>
+                              <p className="m-0 text-[15px] font-semibold sm:text-right tabular-nums">{formatRupee(inv.total_amount)}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Timeline heading */}
+                    <h2 className="mt-10 mb-1 text-[19px] font-bold tracking-[-0.015em]">What I did about your money</h2>
+                    <p className="mb-5 text-[14px] text-muted">A full history of all collections agent events.</p>
+
+                    <div className="border-l border-line pl-6 flex flex-col gap-6">
                       {feed.length === 0 ? (
                         <p className="text-muted text-[14px]">No agent activity on record yet.</p>
                       ) : feed.map((ev, idx) => (

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+/* eslint-disable react-hooks/set-state-in-effect */
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { X, Loader2, AlertCircle } from 'lucide-react';
 

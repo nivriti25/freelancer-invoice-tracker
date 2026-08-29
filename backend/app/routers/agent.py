@@ -90,7 +90,7 @@ async def get_agent_summary(
     attention.
     """
     decisions = (
-        db.query(models.AgentDecision)
+        db.query(models.AgentDecision, models.Invoice.status)
         .join(models.Invoice, models.AgentDecision.invoice_id == models.Invoice.id)
         .filter(models.Invoice.user_id == current_user_id)
         .order_by(models.AgentDecision.created_at.desc())
@@ -121,11 +121,12 @@ async def get_agent_summary(
     }
     latest_actions = {}
     latest_by_invoice = {}
-    for d in decisions:
-        counts[d.decided_action] = counts.get(d.decided_action, 0) + 1
+    for d, status in decisions:
         if d.invoice_id not in latest_by_invoice:
             latest_by_invoice[d.invoice_id] = d
             latest_actions[d.invoice_id] = d.decided_action
+            if status in ("Sent", "Overdue"):
+                counts[d.decided_action] = counts.get(d.decided_action, 0) + 1
 
     needs_attention = []
     for invoice_id, decision in latest_by_invoice.items():
@@ -133,7 +134,7 @@ async def get_agent_summary(
             continue
 
         invoice = db.query(models.Invoice).filter(models.Invoice.id == invoice_id).first()
-        if not invoice:
+        if not invoice or invoice.status not in ("Sent", "Overdue"):
             continue
 
         override = latest_override_by_invoice.get(invoice_id)
