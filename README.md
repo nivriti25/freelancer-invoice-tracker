@@ -32,22 +32,22 @@ The agent decides what to say and when to nudge. It never decides when to stop c
 ### Sign in
 The agent's status is visible from the moment you log in.
 
-*Show Image*
+![Sign in](docs/images/sign_in.png)
 
 ### Today
 Your daily summary: what's outstanding, what's overdue, and what the agent is already handling.
 
-*Show Image*
+![Today](docs/images/today.png)
 
 ### Needs you
 The agent stops here on purpose. These are the invoices it won't touch without your sign-off, disputes, amounts over the threshold, and clients gone silent.
 
-*Show Image*
+![Needs you](docs/images/needs_you.png)
 
 ### Invoices
 Every invoice, worst first, with its current status and what the agent last did about it.
 
-*Show Image*
+![Invoices](docs/images/invoices.png)
 
 ### Clients
 A running record of who pays, how much they've been billed, and their current status.
@@ -62,12 +62,12 @@ Toggle what the agent may do on its own. Anything switched off comes back to you
 ### Decision log
 A full, timestamped history of every action the agent has taken and every guardrail override, with the reason attached.
 
-*Show Image*
+![Decision log](docs/images/decision_log.png)
 
 ### Settings
 Business and bank details used to generate invoice PDFs and payment links.
 
-*Show Image*
+![Settings](docs/images/settings.png)
 
 ## Sample emails
 
@@ -118,8 +118,3 @@ cd frontend
 npm install
 npm run dev
 ```
-
-## What's next
-* Wire reply capture so client replies feed the promise-to-pay tracker automatically.
-* Run the synthetic batch (50+ invoices) and publish recovery rate, amount recovered, and average days-to-recovery.
-* Surface those metrics directly on the dashboard.
