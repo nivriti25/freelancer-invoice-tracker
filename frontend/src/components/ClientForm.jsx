@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { X, User, Mail, Phone, Landmark, MapPin, Loader2, AlertCircle } from 'lucide-react';
+import { X, Loader2, AlertCircle } from 'lucide-react';
+
+const inputClass = "w-full px-3.5 py-2.5 border border-line-strong rounded-md text-ink placeholder-muted text-sm focus:outline-none focus:border-ink transition-colors bg-white";
 
 export default function ClientForm({ isOpen, onClose, onSuccess, clientToEdit }) {
   const { session } = useAuth();
@@ -66,10 +68,10 @@ export default function ClientForm({ isOpen, onClose, onSuccess, clientToEdit })
       if (!response.ok) {
         const errData = await response.json();
         const details = errData.detail;
-        const errMsg = typeof details === 'string' 
-          ? details 
-          : Array.isArray(details) 
-            ? details.map(d => d.msg).join(', ') 
+        const errMsg = typeof details === 'string'
+          ? details
+          : Array.isArray(details)
+            ? details.map(d => d.msg).join(', ')
             : `Failed to ${clientToEdit ? 'update' : 'create'} client.`;
         throw new Error(errMsg);
       }
@@ -93,106 +95,81 @@ export default function ClientForm({ isOpen, onClose, onSuccess, clientToEdit })
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={onClose}></div>
+      <div className="absolute inset-0 bg-ink/45" onClick={onClose}></div>
 
       {/* Modal Card */}
-      <div className="bg-white border border-slate-200 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl relative z-10 animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-white border border-line w-full max-w-md rounded-lg overflow-hidden shadow-2xl relative z-10 animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
-          <h3 className="font-bold text-lg text-slate-800">{clientToEdit ? 'Edit Client Details' : 'Add New Client'}</h3>
-          <button onClick={onClose} className="p-1 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-200/50 transition-colors">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-line">
+          <h3 className="font-bold text-[19px] text-ink m-0">{clientToEdit ? 'Edit client' : 'Add new client'}</h3>
+          <button onClick={onClose} className="p-1 rounded-md text-muted hover:text-ink hover:bg-line-soft transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-7 flex flex-col gap-4">
           {error && (
-            <div className="flex items-start gap-2 bg-rose-50 border border-rose-100 text-rose-600 text-xs p-3.5 rounded-xl">
+            <div className="flex items-start gap-2 bg-rose-50 border border-rose-100 text-rose-600 text-xs p-3.5 rounded-md">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-500">Client Name *</label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
-                <User className="w-4.5 h-4.5" />
-              </span>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Acme Corp"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:bg-white focus:border-[#378ADD] focus:ring-1 focus:ring-[#378ADD]/25 transition-all"
-              />
-            </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[13px] font-semibold text-ink-soft">Client name *</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Acme Corp"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={inputClass}
+            />
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-500">Email Address</label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
-                <Mail className="w-4.5 h-4.5" />
-              </span>
-              <input
-                type="email"
-                placeholder="e.g. billing@acme.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:bg-white focus:border-[#378ADD] focus:ring-1 focus:ring-[#378ADD]/25 transition-all"
-              />
-            </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[13px] font-semibold text-ink-soft">Email address</label>
+            <input
+              type="email"
+              placeholder="e.g. billing@acme.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={inputClass}
+            />
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-500">Phone Number</label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
-                <Phone className="w-4.5 h-4.5" />
-              </span>
-              <input
-                type="tel"
-                placeholder="e.g. +91 98765 43210"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:bg-white focus:border-[#378ADD] focus:ring-1 focus:ring-[#378ADD]/25 transition-all"
-              />
-            </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[13px] font-semibold text-ink-soft">Phone number</label>
+            <input
+              type="tel"
+              placeholder="e.g. +91 98765 43210"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className={inputClass}
+            />
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-500">GST Number (Optional)</label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
-                <Landmark className="w-4.5 h-4.5" />
-              </span>
-              <input
-                type="text"
-                placeholder="15-character GSTIN"
-                value={gstNumber}
-                onChange={(e) => setGstNumber(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:bg-white focus:border-[#378ADD] focus:ring-1 focus:ring-[#378ADD]/25 transition-all"
-              />
-            </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[13px] font-semibold text-ink-soft">GST number (optional)</label>
+            <input
+              type="text"
+              placeholder="15-character GSTIN"
+              value={gstNumber}
+              onChange={(e) => setGstNumber(e.target.value)}
+              className={inputClass}
+            />
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-500">Billing Address</label>
-            <div className="relative">
-              <span className="absolute top-3 left-3.5 text-slate-400">
-                <MapPin className="w-4.5 h-4.5" />
-              </span>
-              <textarea
-                rows="3"
-                placeholder="Corporate billing address"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:bg-white focus:border-[#378ADD] focus:ring-1 focus:ring-[#378ADD]/25 transition-all resize-none"
-              />
-            </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[13px] font-semibold text-ink-soft">Billing address</label>
+            <textarea
+              rows="3"
+              placeholder="Corporate billing address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              className={`${inputClass} resize-none`}
+            />
           </div>
 
           {/* Footer Actions */}
@@ -200,14 +177,14 @@ export default function ClientForm({ isOpen, onClose, onSuccess, clientToEdit })
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold text-sm transition-colors"
+              className="flex-1 py-2.5 rounded-md border border-line-strong hover:bg-line-soft text-ink-soft font-semibold text-sm transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 bg-[#042C53] hover:bg-[#378ADD] disabled:opacity-50 disabled:cursor-not-allowed text-white py-2.5 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-1.5"
+              className="flex-1 bg-ink hover:bg-ink-soft disabled:opacity-50 disabled:cursor-not-allowed text-white py-2.5 rounded-md font-semibold text-sm transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
             >
               {loading ? (
                 <>
@@ -215,7 +192,7 @@ export default function ClientForm({ isOpen, onClose, onSuccess, clientToEdit })
                   Saving...
                 </>
               ) : (
-                clientToEdit ? 'Update Client' : 'Save Client'
+                clientToEdit ? 'Update client' : 'Save client'
               )}
             </button>
           </div>
