@@ -1,5 +1,5 @@
 import re
-from typing import Optional, List
+from typing import Optional, List, Dict
 # pyrefly: ignore [missing-import]
 from pydantic import BaseModel, Field, field_validator
 from datetime import datetime, date
@@ -149,3 +149,73 @@ class RazorpayVerifyRequest(BaseModel):
 class RazorpayVerifyResponse(BaseModel):
     status: str
     message: str
+
+
+# --- AI Collections Agent schemas ---
+# Human-readable views over the agent_decisions / guardrail_overrides / promises
+# tables, so the frontend never needs direct database access to explain what
+# the automated overdue-invoice agent has done.
+
+class AgentDecisionResponse(BaseModel):
+    id: UUID
+    invoice_id: UUID
+    classification: Optional[str] = None
+    decided_action: str
+    raw_llm_output: Optional[str] = None
+    created_at: datetime
+
+    model_config = {
+        "from_attributes": True
+    }
+
+class GuardrailOverrideResponse(BaseModel):
+    id: UUID
+    invoice_id: UUID
+    llm_proposed_action: str
+    override_reason: str
+    final_action: str
+    created_at: datetime
+
+    model_config = {
+        "from_attributes": True
+    }
+
+class PromiseResponse(BaseModel):
+    id: UUID
+    invoice_id: UUID
+    promised_date: date
+    resolved: bool
+    created_at: datetime
+
+    model_config = {
+        "from_attributes": True
+    }
+
+class InvoiceAgentActivityResponse(BaseModel):
+    """Full chronological agent history for a single invoice."""
+    invoice_id: UUID
+    latest_action: Optional[str] = None
+    active_promise_date: Optional[date] = None
+    decisions: List[AgentDecisionResponse]
+    overrides: List[GuardrailOverrideResponse]
+    promises: List[PromiseResponse]
+
+class AgentAttentionItem(BaseModel):
+    """One invoice the agent has explicitly handed off to a human."""
+    invoice_id: UUID
+    invoice_number: str
+    client_name: str
+    total_amount: Decimal
+    decided_action: str
+    reason: str
+    created_at: datetime
+
+class AgentSummaryResponse(BaseModel):
+    """Account-wide rollup of the AI collections agent's activity."""
+    reminders_sent: int
+    retried_payment: int
+    escalated: int
+    disputed: int
+    needs_attention: List[AgentAttentionItem]
+    latest_actions: Dict[UUID, str] = {}
+    active_promises: Dict[UUID, date] = {}

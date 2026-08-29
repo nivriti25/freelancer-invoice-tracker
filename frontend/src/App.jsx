@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { IndianRupee, FileText, Users, CheckCircle, Clock, Plus, TrendingUp, LogOut, Loader2, PlusCircle, AlertCircle, AlertTriangle, Trash2, Landmark, Mail, MapPin, Search, User, Phone, Eye, Download, Send, ChevronDown, ChevronUp, Edit, Calendar, ArrowRight, Menu, X, Settings, CreditCard } from 'lucide-react';
+import { IndianRupee, FileText, Users, CheckCircle, Clock, Plus, TrendingUp, LogOut, Loader2, PlusCircle, AlertCircle, AlertTriangle, Trash2, Landmark, Mail, MapPin, Search, User, Phone, Eye, Download, Send, ChevronDown, ChevronUp, Edit, Calendar, ArrowRight, Menu, X, Settings, CreditCard, Bot, MessageSquare, ShieldAlert } from 'lucide-react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { supabase } from './supabaseClient';
@@ -36,11 +36,181 @@ const formatSentDate = (isoString) => {
   }
 };
 
+const formatShortDate = (value) => {
+  if (!value) return '';
+  try {
+    return new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  } catch (e) {
+    return value;
+  }
+};
+
+const formatDateTime = (isoString) => {
+  if (!isoString) return '';
+  try {
+    return new Date(isoString).toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch (e) {
+    return isoString;
+  }
+};
+
+// --- AI Collections Agent: shared display metadata --- //
+// These map the raw backend vocabulary (AgentAction enum values / classifier
+// labels) onto human-readable badges and copy, so the UI never needs to show
+// a raw enum string like "escalate_to_human" to the user.
+
+const AI_ACTION_META = {
+  send_reminder: { label: 'Reminder Sent', icon: Mail, className: 'bg-blue-50 text-blue-700 border-blue-200' },
+  retry_payment: { label: 'Retrying Payment', icon: CreditCard, className: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+  escalate_to_human: { label: 'Needs Your Attention', icon: AlertTriangle, className: 'bg-amber-50 text-amber-700 border-amber-200' },
+  mark_disputed: { label: 'Disputed — Review', icon: AlertCircle, className: 'bg-rose-50 text-rose-700 border-rose-200' },
+  do_nothing: { label: 'AI: No Action Needed', icon: CheckCircle, className: 'bg-slate-50 text-slate-600 border-slate-200' },
+};
+
+const AI_CLASSIFICATION_LABELS = {
+  forgot: 'client likely forgot',
+  disputed: 'client is disputing the invoice',
+  payment_failed: 'a payment attempt failed',
+  gone_silent: 'client has gone silent',
+};
+
+// Small badge shown next to an invoice's status, sourced from the account-wide
+// agent summary map so no per-row API call is needed.
+function AiActivityBadge({ invoiceId, agentSummary }) {
+  if (!agentSummary) return null;
+
+  const promiseDate = agentSummary.active_promises?.[invoiceId];
+  if (promiseDate) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full border select-none bg-emerald-50 text-emerald-700 border-emerald-200">
+        <MessageSquare className="w-2.5 h-2.5" />
+        Promised to pay by {formatShortDate(promiseDate)}
+      </span>
+    );
+  }
+
+  const action = agentSummary.latest_actions?.[invoiceId];
+  const meta = action && AI_ACTION_META[action];
+  if (!meta) return null;
+  const Icon = meta.icon;
+
+  return (
+    <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full border select-none ${meta.className}`}>
+      <Icon className="w-2.5 h-2.5" />
+      {meta.label}
+    </span>
+  );
+}
+
+// Merges an invoice's decisions/overrides/promises into one chronological feed.
+// A decision and its override share the exact same created_at timestamp
+// (both are written inside the same DB transaction in check_overdue.py), so
+// they can be paired by timestamp equality.
+function buildAgentTimeline(activity) {
+  if (!activity) return [];
+
+  const overrideByTimestamp = {};
+  (activity.overrides || []).forEach((o) => {
+    overrideByTimestamp[o.created_at] = o;
+  });
+
+  const decisionEvents = (activity.decisions || []).map((d) => ({
+    type: 'decision',
+    created_at: d.created_at,
+    classification: d.classification,
+    decided_action: d.decided_action,
+    raw_llm_output: d.raw_llm_output,
+    override: overrideByTimestamp[d.created_at] || null,
+  }));
+
+  const promiseEvents = (activity.promises || []).map((p) => ({
+    type: 'promise',
+    created_at: p.created_at,
+    promised_date: p.promised_date,
+    resolved: p.resolved,
+  }));
+
+  return [...decisionEvents, ...promiseEvents].sort(
+    (a, b) => new Date(a.created_at) - new Date(b.created_at)
+  );
+}
+
+function AgentTimeline({ activity }) {
+  const events = buildAgentTimeline(activity);
+
+  if (events.length === 0) {
+    return (
+      <div className="text-xs text-slate-400 py-1 select-none">
+        The AI agent hasn't taken any action on this invoice yet.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {events.map((event, idx) => {
+        if (event.type === 'promise') {
+          return (
+            <div key={`promise-${idx}`} className="flex items-start gap-3">
+              <div className="w-6 h-6 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
+                <MessageSquare className="w-3 h-3" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-slate-800">
+                  Client promised to pay by {formatShortDate(event.promised_date)}
+                  {event.resolved && <span className="text-emerald-600 font-semibold"> — kept</span>}
+                </p>
+                <p className="text-[10px] text-slate-450 font-semibold mt-0.5">{formatDateTime(event.created_at)}</p>
+              </div>
+            </div>
+          );
+        }
+
+        const meta = AI_ACTION_META[event.decided_action] || AI_ACTION_META.do_nothing;
+        const Icon = meta.icon;
+        const classificationLabel = AI_CLASSIFICATION_LABELS[event.classification] || event.classification;
+
+        return (
+          <div key={`decision-${idx}`} className="flex items-start gap-3">
+            <div className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 mt-0.5 ${meta.className}`}>
+              <Icon className="w-3 h-3" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-slate-800">{meta.label}</p>
+              {classificationLabel && (
+                <p className="text-[10px] text-slate-500 font-semibold mt-0.5">Reason: {classificationLabel}</p>
+              )}
+              {event.override && (
+                <div className="flex items-start gap-1.5 mt-1.5 p-2 bg-amber-50/60 border border-amber-100 rounded-lg">
+                  <ShieldAlert className="w-3 h-3 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-amber-800 font-semibold leading-relaxed">
+                    AI suggested "{AI_ACTION_META[event.raw_llm_output]?.label || event.raw_llm_output}", but was overridden: {event.override.override_reason}
+                  </p>
+                </div>
+              )}
+              <p className="text-[10px] text-slate-450 font-semibold mt-0.5">{formatDateTime(event.created_at)}</p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function Dashboard() {
   const navigate = useNavigate();
   const { user, session, signOut } = useAuth();
   const [clients, setClients] = useState([]);
   const [invoices, setInvoices] = useState([]);
+  const [agentSummary, setAgentSummary] = useState(null);
+  const [agentActivity, setAgentActivity] = useState({});
+  const [agentActivityLoading, setAgentActivityLoading] = useState({});
 
   const [isClientFormOpen, setIsClientFormOpen] = useState(false);
   const [isInvoiceFormOpen, setIsInvoiceFormOpen] = useState(false);
@@ -387,6 +557,41 @@ function Dashboard() {
       setError(err.message || 'Error loading dashboard data.');
     } finally {
       setLoading(false);
+    }
+
+    // 3. Fetch AI collections agent summary. Kept outside the try/catch above
+    // so a hiccup here never blocks the core clients/invoices dashboard data.
+    try {
+      const agentRes = await fetch(`${import.meta.env.VITE_API_URL}/agent/summary`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+      if (agentRes.ok) {
+        setAgentSummary(await agentRes.json());
+      }
+    } catch (err) {
+      console.error('Error fetching AI agent summary:', err);
+    }
+  };
+
+  const fetchAgentActivity = async (invoiceId) => {
+    if (agentActivity[invoiceId] || agentActivityLoading[invoiceId]) return;
+    setAgentActivityLoading(prev => ({ ...prev, [invoiceId]: true }));
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/agent/invoices/${invoiceId}/activity`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAgentActivity(prev => ({ ...prev, [invoiceId]: data }));
+      }
+    } catch (err) {
+      console.error('Error fetching invoice AI agent activity:', err);
+    } finally {
+      setAgentActivityLoading(prev => ({ ...prev, [invoiceId]: false }));
     }
   };
 
@@ -1011,13 +1216,14 @@ function Dashboard() {
                                 <p className="text-[10px] text-slate-450 font-semibold mt-0.5">{inv.invoice_number} • Issued: {inv.issue_date}</p>
                               </div>
                             </div>
-                            <div className="flex items-center gap-4 font-sans">
+                            <div className="flex items-center gap-2 font-sans flex-wrap justify-end">
                               <span className="font-bold text-xs text-slate-705 font-mono select-all">
                                 {formatRupee(inv.total_amount)}
                               </span>
                               <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border select-none ${statusColors[inv.status] || statusColors.Draft}`}>
                                 {inv.status}
                               </span>
+                              <AiActivityBadge invoiceId={inv.id} agentSummary={agentSummary} />
                             </div>
                           </div>
                         );
@@ -1062,6 +1268,73 @@ function Dashboard() {
                     ));
                   })()}
                 </div>
+              </div>
+            </div>
+
+            {/* AI Collections Agent Widget */}
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100/50 shadow-sm">
+                    <Bot className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-800 font-sans tracking-tight">AI Collections Agent</h3>
+                    <p className="text-slate-450 text-[11px] font-semibold mt-0.5">What the automated overdue-invoice agent has been doing, and what it needs from you.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stat pills */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
+                <div className="p-3 rounded-xl border border-blue-100 bg-blue-50/50 text-center">
+                  <p className="text-lg font-extrabold text-blue-700 font-sans">{agentSummary?.reminders_sent ?? 0}</p>
+                  <p className="text-[9px] font-bold uppercase tracking-wide text-blue-600/80 mt-0.5">Reminders Sent</p>
+                </div>
+                <div className="p-3 rounded-xl border border-indigo-100 bg-indigo-50/50 text-center">
+                  <p className="text-lg font-extrabold text-indigo-700 font-sans">{agentSummary?.retried_payment ?? 0}</p>
+                  <p className="text-[9px] font-bold uppercase tracking-wide text-indigo-600/80 mt-0.5">Payments Retried</p>
+                </div>
+                <div className="p-3 rounded-xl border border-rose-100 bg-rose-50/50 text-center">
+                  <p className="text-lg font-extrabold text-rose-700 font-sans">{agentSummary?.disputed ?? 0}</p>
+                  <p className="text-[9px] font-bold uppercase tracking-wide text-rose-600/80 mt-0.5">Disputed</p>
+                </div>
+                <div className="p-3 rounded-xl border border-amber-100 bg-amber-50/50 text-center">
+                  <p className="text-lg font-extrabold text-amber-700 font-sans">{agentSummary?.escalated ?? 0}</p>
+                  <p className="text-[9px] font-bold uppercase tracking-wide text-amber-600/80 mt-0.5">Escalated To You</p>
+                </div>
+              </div>
+
+              {/* Needs attention list */}
+              <div className="mt-5">
+                <h4 className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2.5">Needs Your Attention</h4>
+                {(!agentSummary || agentSummary.needs_attention.length === 0) ? (
+                  <div className="py-8 flex flex-col items-center justify-center gap-2 text-slate-400 select-none text-center">
+                    <CheckCircle className="w-5 h-5 text-emerald-500 opacity-80" />
+                    <p className="text-[11px] font-semibold text-slate-450">Nothing waiting on you — the agent is handling collections on its own.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {agentSummary.needs_attention.map((item) => {
+                      const meta = AI_ACTION_META[item.decided_action] || AI_ACTION_META.escalate_to_human;
+                      const Icon = meta.icon;
+                      return (
+                        <div key={item.invoice_id} className="flex items-start gap-3 p-3.5 bg-amber-50/30 border border-amber-100/60 rounded-xl">
+                          <div className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${meta.className}`}>
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <p className="text-xs font-bold text-slate-800">{item.client_name} • {item.invoice_number}</p>
+                              <span className="text-xs font-bold text-slate-700 font-mono">{formatRupee(item.total_amount)}</span>
+                            </div>
+                            <p className="text-[10px] text-slate-550 font-semibold mt-1 leading-relaxed">{item.reason}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           </>
@@ -1445,6 +1718,7 @@ function Dashboard() {
                                 <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border select-none ${statusColors[inv.status] || statusColors.Draft}`}>
                                   {inv.status}
                                 </span>
+                                <AiActivityBadge invoiceId={inv.id} agentSummary={agentSummary} />
                               </div>
 
                               <div className="flex items-center gap-2">
@@ -1489,7 +1763,13 @@ function Dashboard() {
 
                             {/* Toggle Items Drawer button */}
                             <button
-                              onClick={() => setExpandedInvoiceId(expandedInvoiceId === inv.id ? null : inv.id)}
+                              onClick={() => {
+                                const nextId = expandedInvoiceId === inv.id ? null : inv.id;
+                                setExpandedInvoiceId(nextId);
+                                if (nextId && agentSummary?.latest_actions?.[inv.id]) {
+                                  fetchAgentActivity(inv.id);
+                                }
+                              }}
                               className="flex items-center gap-0.5 text-[10px] font-bold text-indigo-650 hover:text-indigo-800 transition-colors bg-indigo-50/50 hover:bg-indigo-50 border border-indigo-100/20 px-2 py-0.5 rounded-lg select-none"
                             >
                               <span>{expandedInvoiceId === inv.id ? 'Hide Details' : 'Details'}</span>
@@ -1658,6 +1938,23 @@ function Dashboard() {
                                     This invoice has been fully paid.
                                     {inv.razorpay_payment_id && ` Payment ID: ${inv.razorpay_payment_id}`}
                                   </p>
+                                </div>
+                              </div>
+                            )}
+                            {agentSummary?.latest_actions?.[inv.id] && (
+                              <div className="mb-4">
+                                <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2.5 flex items-center gap-1.5">
+                                  <Bot className="w-3.5 h-3.5 text-indigo-500" />
+                                  AI Collection Activity
+                                </div>
+                                <div className="rounded-xl border border-slate-200/50 bg-white shadow-sm p-4">
+                                  {agentActivityLoading[inv.id] ? (
+                                    <div className="flex items-center gap-2 text-xs text-slate-400 py-1 select-none">
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading activity...
+                                    </div>
+                                  ) : (
+                                    <AgentTimeline activity={agentActivity[inv.id]} />
+                                  )}
                                 </div>
                               </div>
                             )}
