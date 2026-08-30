@@ -50,16 +50,16 @@ python run_batch.py --keep   # --keep leaves the batch's rows in the DB for insp
 
 **Money recovered**
 
-| Invoice | Amount | Days to pay |
+| Invoice | Amount | Days to pay (after due date) |
 | :--- | ---: | ---: |
-| INV-BATCH-002 | ₹8,500 | -4 |
-| INV-BATCH-003 | ₹15,000 | -4 |
-| INV-BATCH-005 | ₹9,000 | -4 |
-| INV-BATCH-001 | ₹12,000 | -1 |
-| INV-BATCH-013 | ₹14,500 | -1 |
-| INV-BATCH-004 | ₹4,500 | 0 |
-| INV-BATCH-012 | ₹25,000 | +1 |
-| INV-BATCH-021 | ₹3,500 | +1 |
+| INV-BATCH-002 | ₹8,500 | 4 |
+| INV-BATCH-003 | ₹15,000 | 11 |
+| INV-BATCH-005 | ₹9,000 | 6 |
+| INV-BATCH-001 | ₹12,000 | 2 |
+| INV-BATCH-013 | ₹14,500 | 3 |
+| INV-BATCH-004 | ₹4,500 | 2 |
+| INV-BATCH-012 | ₹25,000 | 3 |
+| INV-BATCH-021 | ₹3,500 | 2 |
 | **Total** | **₹92,000** | |
 
 **Compliant escalation & stopping rules**
