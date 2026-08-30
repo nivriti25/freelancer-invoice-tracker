@@ -29,53 +29,59 @@ The agent decides what to say and when to nudge. It never decides when to stop c
 
 ## Measured results: a 22-invoice batch
 
-Talk is cheap, so here's a run, not a claim. `backend/run_batch.py` seeds 22 synthetic overdue invoices (`backend/synthetic_batch.json`) with different client behaviors — pays after a reminder, goes silent, disputes, payment fails and retries, high-value, do-not-contact — then advances a mocked calendar day by day from 5 days before the batch starts through 30 days out. Only the LLM calls (classification, email drafting) and email/payment sending are mocked; the guardrail checks, escalation ladder, decision logger, and database writes are the real production code in `app/ai_agent/`. Reproduce it yourself with:
+`backend/run_batch.py` runs 22 synthetic overdue invoices (`backend/synthetic_batch.json`) covering every client behavior — pays after a reminder, goes silent, disputes, payment fails and retries, high-value, do-not-contact — through a day-by-day simulated calendar. Only the LLM calls and outbound sending are mocked; the guardrails, escalation ladder, and decision logger are the real code in `app/ai_agent/`. Reproduce with:
 
 ```bash
 cd backend
 python run_batch.py --keep   # --keep leaves the batch's rows in the DB for inspection
 ```
 
-Results from a run against this batch:
+**Summary**
 
-| Metric | Result |
-| :--- | :--- |
+| Metric | Value |
+| :--- | ---: |
 | Amount recovered | ₹92,000.00 |
-| Recovery rate | 36.4% (8 of 22 invoices) |
-| Average days to recovery (from due date) | 4.1 days |
-| Escalated to a human | 13 of 22 invoices |
+| Recovery rate | 36.4% (8 / 22 invoices) |
+| Average days to recovery | 4.1 days |
+| Escalated to a human | 13 / 22 invoices |
+| Still in progress at cutoff | 1 / 22 invoices |
 | Decisions logged | 472 |
 | Guardrail overrides logged | 181 (6 distinct invoice/reason cases) |
 
-**Money recovered, invoice by invoice:**
+**Money recovered**
 
-| Invoice | Amount | Paid |
-| :--- | ---: | :--- |
-| INV-BATCH-002 | ₹8,500 | Day -4 |
-| INV-BATCH-003 | ₹15,000 | Day -4 |
-| INV-BATCH-005 | ₹9,000 | Day -4 |
-| INV-BATCH-001 | ₹12,000 | Day -1 |
-| INV-BATCH-013 | ₹14,500 | Day -1 |
-| INV-BATCH-004 | ₹4,500 | Day 0 |
-| INV-BATCH-012 | ₹25,000 | Day +1 |
-| INV-BATCH-021 | ₹3,500 | Day +1 |
+| Invoice | Amount | Days to pay |
+| :--- | ---: | ---: |
+| INV-BATCH-002 | ₹8,500 | -4 |
+| INV-BATCH-003 | ₹15,000 | -4 |
+| INV-BATCH-005 | ₹9,000 | -4 |
+| INV-BATCH-001 | ₹12,000 | -1 |
+| INV-BATCH-013 | ₹14,500 | -1 |
+| INV-BATCH-004 | ₹4,500 | 0 |
+| INV-BATCH-012 | ₹25,000 | +1 |
+| INV-BATCH-021 | ₹3,500 | +1 |
+| **Total** | **₹92,000** | |
 
-**Compliant escalation and stopping rules — every case the agent refused to act on its own, and why:**
+**Compliant escalation & stopping rules**
 
-| Invoice | Guardrail triggered | Stopping rule |
+| Invoice(s) | Trigger | Rule enforced |
 | :--- | :--- | :--- |
-| INV-BATCH-015 (₹65,000) | Amount exceeds ₹50,000 threshold | Always route above-threshold invoices to a human, never an AI judgment call |
-| INV-BATCH-016 (₹85,000) | Amount exceeds ₹50,000 threshold | Same amount-threshold rule |
-| INV-BATCH-017 | Do-not-contact flag set | Never contact a flagged client or invoice, no exceptions |
-| INV-BATCH-018 | 3 automated contacts already made | Human-in-the-loop gate: stop nudging, wait for sign-off |
-| INV-BATCH-019 | 3 automated contacts already made | Same contact-cap rule |
-| INV-BATCH-020 | 3 automated contacts already made | Same contact-cap rule |
-| INV-BATCH-006, 007, 008, 009, 022 | Classified `gone_silent`, 3+ reminders sent with no reply | Decider routes to `escalate_to_human` instead of a 4th reminder |
-| INV-BATCH-010, 011 | Classified `disputed` | Disputes always go to `mark_disputed` for a human, never auto-resolved |
+| INV-BATCH-015 (₹65,000), INV-BATCH-016 (₹85,000) | Amount over ₹50,000 | Amount threshold: routed to a human, never an AI judgment call |
+| INV-BATCH-017 | Do-not-contact flag | Never contact a flagged client or invoice |
+| INV-BATCH-018, 019, 020 | 3 automated contacts already made | Contact cap: stop nudging, wait for human sign-off |
+| INV-BATCH-006, 007, 008, 009, 022 | Classified `gone_silent` after 3+ unanswered reminders | Routed to `escalate_to_human` instead of a 4th reminder |
+| INV-BATCH-010, 011 | Classified `disputed` | Always routed to `mark_disputed` for a human, never auto-resolved |
+| INV-BATCH-014 | Persistent payment failure, still mid-retry | Left in progress rather than forced to a result at cutoff |
 
-One invoice (INV-BATCH-014, persistent card failure) was still mid-retry with no escalation and no payment when the 30-day window closed — left as-is rather than forced to a result, since that's what the pipeline would actually do.
+**Audit trail**
 
-**Audit trail:** every one of the 472 decisions above is a row in `agent_decisions` (classification, proposed action, final action, and the input summary that drove it), and every guardrail override is a separate row in `guardrail_overrides` (proposed action → final action → the exact reason string). Nothing here is summarized after the fact — the metrics table is a direct aggregation of `payments`, `agent_decisions`, and `guardrail_overrides` rows written during the run, and the same tables back the dashboard's decision log.
+| Table | Row count | Records |
+| :--- | ---: | :--- |
+| `payments` | 8 | Amount, invoice, payment ID, timestamp |
+| `agent_decisions` | 472 | Classification, proposed action, final action, timestamp |
+| `guardrail_overrides` | 181 | Proposed action → final action, with the exact override reason |
+
+Every figure above is a direct aggregation of these three tables — nothing is summarized after the fact — and the same tables back the dashboard's decision log.
 
 ## Screenshots
 
