@@ -27,6 +27,62 @@ The agent decides what to say and when to nudge. It never decides when to stop c
 * **Guardrails**: contact caps, an amount threshold above which a human must approve, and a do-not-contact flag per client or invoice.
 * **Audit trail**: every classification, decision, and override is logged with a timestamp and reason, visible in the dashboard, not buried in backend logs.
 
+## Measured results: a 22-invoice batch
+
+`backend/run_batch.py` runs 22 synthetic overdue invoices (`backend/synthetic_batch.json`) covering every client behavior — pays after a reminder, goes silent, disputes, payment fails and retries, high-value, do-not-contact — through a day-by-day simulated calendar. Only the LLM calls and outbound sending are mocked; the guardrails, escalation ladder, and decision logger are the real code in `app/ai_agent/`. Reproduce with:
+
+```bash
+cd backend
+python run_batch.py --keep   # --keep leaves the batch's rows in the DB for inspection
+```
+
+**Summary**
+
+| Metric | Value |
+| :--- | ---: |
+| Amount recovered | ₹92,000.00 |
+| Recovery rate | 36.4% (8 / 22 invoices) |
+| Average days to recovery | 4.1 days |
+| Escalated to a human | 13 / 22 invoices |
+| Still in progress at cutoff | 1 / 22 invoices |
+| Decisions logged | 472 |
+| Guardrail overrides logged | 181 (6 distinct invoice/reason cases) |
+
+**Money recovered**
+
+| Invoice | Amount | Days to pay (after due date) |
+| :--- | ---: | ---: |
+| INV-BATCH-002 | ₹8,500 | 4 |
+| INV-BATCH-003 | ₹15,000 | 11 |
+| INV-BATCH-005 | ₹9,000 | 6 |
+| INV-BATCH-001 | ₹12,000 | 2 |
+| INV-BATCH-013 | ₹14,500 | 3 |
+| INV-BATCH-004 | ₹4,500 | 2 |
+| INV-BATCH-012 | ₹25,000 | 3 |
+| INV-BATCH-021 | ₹3,500 | 2 |
+| **Total** | **₹92,000** | |
+
+**Compliant escalation & stopping rules**
+
+| Invoice(s) | Trigger | Rule enforced |
+| :--- | :--- | :--- |
+| INV-BATCH-015 (₹65,000), INV-BATCH-016 (₹85,000) | Amount over ₹50,000 | Amount threshold: routed to a human, never an AI judgment call |
+| INV-BATCH-017 | Do-not-contact flag | Never contact a flagged client or invoice |
+| INV-BATCH-018, 019, 020 | 3 automated contacts already made | Contact cap: stop nudging, wait for human sign-off |
+| INV-BATCH-006, 007, 008, 009, 022 | Classified `gone_silent` after 3+ unanswered reminders | Routed to `escalate_to_human` instead of a 4th reminder |
+| INV-BATCH-010, 011 | Classified `disputed` | Always routed to `mark_disputed` for a human, never auto-resolved |
+| INV-BATCH-014 | Persistent payment failure, still mid-retry | Left in progress rather than forced to a result at cutoff |
+
+**Audit trail**
+
+| Table | Row count | Records |
+| :--- | ---: | :--- |
+| `payments` | 8 | Amount, invoice, payment ID, timestamp |
+| `agent_decisions` | 472 | Classification, proposed action, final action, timestamp |
+| `guardrail_overrides` | 181 | Proposed action → final action, with the exact override reason |
+
+Every figure above is a direct aggregation of these three tables — nothing is summarized after the fact — and the same tables back the dashboard's decision log.
+
 ## Screenshots
 
 ### Sign in
@@ -88,17 +144,6 @@ The agent drafts reminder emails itself, adjusting tone as an invoice moves up t
 * **Payments**: Razorpay
 * **AI**: Anthropic API
 * **Frontend**: React (Vite) + Tailwind CSS
-
-## Project status
-
-| Phase | Outcome | Status |
-| :--- | :--- | :--- |
-| 0. Foundation | Standalone LLM call works | In progress |
-| 1. Data layer | Tables for decisions, guardrails, promises | In progress |
-| 2. Core reasoning | Classifier, decider, drafting prompts | In progress |
-| 3. Guardrails & workflow | Contact caps, escalation ladder, promise tracking | In progress |
-| 4. Integration | Agent pipeline replaces the static cron email | In progress |
-| 5. Measurement | Synthetic batch, metrics, audit trail UI | Not started |
 
 ## Setup
 
